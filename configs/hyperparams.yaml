@@ -1,0 +1,89 @@
+# ============================================================
+# EFADT Hyperparameter Configuration
+# ============================================================
+
+# --- Dataset ---
+data:
+  n_buildings: 12
+  n_months: 12
+  sampling_interval_s: 30            # seconds
+  n_features: 14
+  train_months: 9
+  test_months: 3
+  max_occupancy: 80                  # persons
+  hvac_capacity_kw: 25.0
+  comfort_temp_min: 20.0             # °C
+  comfort_temp_max: 26.0             # °C
+  co2_comfort_max_ppm: 1000.0
+  seed: 42
+
+# --- LSTM Model ---
+lstm:
+  hidden_size: 128
+  num_layers: 2
+  dropout: 0.2
+  lookback_steps: 12                 # 6-minute window at 30s resolution
+  input_dim: 14
+  output_dim: 1                      # occupancy forecast
+  batch_size: 64
+  learning_rate: 0.001
+  weight_decay: 1.0e-5
+  local_epochs: 5                    # E in FedAvg
+
+# --- Federated Learning ---
+federated:
+  num_rounds: 100
+  fraction_fit: 1.0                  # all 12 buildings participate
+  fraction_evaluate: 1.0
+  min_fit_clients: 12
+  min_evaluate_clients: 12
+  min_available_clients: 12
+  convergence_mae_threshold: 3.5    # persons
+  expected_convergence_round: 52
+
+# --- Differential Privacy ---
+dp:
+  epsilon: 1.0
+  delta: 1.0e-5
+  max_grad_norm: 1.0                # clipping norm C
+  sigma: 4.84                       # noise multiplier (computed from eps, delta)
+  target_delta: 1.0e-5
+
+# --- Digital Twin ---
+digital_twin:
+  horizon_steps: 6                  # H = 6 simulation steps
+  dt_seconds: 30                    # Euler timestep
+  kappa: 0.1                        # metabolic heat per person [kW/person]
+
+# --- Agent ---
+agent:
+  lambda_e: 0.5                     # energy weight
+  lambda_c: 0.35                    # comfort weight
+  lambda_d: 0.15                    # crowd density weight
+  hvac_setpoint_range: [18.0, 28.0] # °C
+  hvac_setpoint_step: 0.5           # °C resolution
+  max_power_kw: 25.0
+
+# --- XAI / Trust ---
+xai:
+  eta1: 0.5                         # SHAP coherence weight
+  eta2: 0.3                         # comfort alignment weight
+  eta3: 0.2                         # safety alignment weight
+  proxy_n_estimators: 100
+  proxy_max_depth: 5
+  proxy_learning_rate: 0.1
+  top_k_features: 3                 # features shown in rationale
+
+# --- Pipeline ---
+pipeline:
+  decision_interval_s: 30
+  latency_budget_ms: 150
+  lstm_budget_ms: 67
+  simulation_budget_ms: 27
+  shap_budget_ms: 23
+
+# --- Monitoring ---
+monitoring:
+  trust_score_alert_threshold: 0.7  # flag decisions below this
+  mae_drift_threshold: 0.5          # relative MAE increase before alert
+  latency_alert_ms: 150
