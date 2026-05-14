@@ -1,0 +1,139 @@
+# ============================================================
+# EFADT Per-Building Thermal Parameters
+# RC Model: dT_in/dt = alpha*(T_out - T_in) + beta*Q_HVAC + gamma*kappa*occ
+# ============================================================
+# Parameters fitted via OLS regression on synthetic sensor data.
+# Units: alpha [1/s], beta [°C/kW/s], gamma [°C/(kW/person)/s]
+
+buildings:
+  B01:
+    name: "Lecture Hall A"
+    floor_area_m2: 850
+    hvac_capacity_kw: 22.0
+    max_occupancy: 120
+    alpha: 0.0015         # thermal conductance (well-insulated)
+    beta: 0.012
+    gamma: 0.008
+    initial_temp: 22.0
+    outdoor_temp_offset: 0.5   # microclimate adjustment
+
+  B02:
+    name: "Engineering Building"
+    floor_area_m2: 1200
+    hvac_capacity_kw: 25.0
+    max_occupancy: 80
+    alpha: 0.0020
+    beta: 0.010
+    gamma: 0.009
+    initial_temp: 23.0
+    outdoor_temp_offset: 0.0
+
+  B03:
+    name: "Science Lab Complex"
+    floor_area_m2: 950
+    hvac_capacity_kw: 20.0
+    max_occupancy: 60
+    alpha: 0.0018
+    beta: 0.011
+    gamma: 0.010
+    initial_temp: 22.5
+    outdoor_temp_offset: -0.3
+
+  B04:
+    name: "Administrative Block"
+    floor_area_m2: 600
+    hvac_capacity_kw: 15.0
+    max_occupancy: 50
+    alpha: 0.0022
+    beta: 0.009
+    gamma: 0.007
+    initial_temp: 22.0
+    outdoor_temp_offset: 0.2
+
+  B05:
+    name: "Student Dormitory East"
+    floor_area_m2: 2000
+    hvac_capacity_kw: 18.0
+    max_occupancy: 150
+    alpha: 0.0012
+    beta: 0.013
+    gamma: 0.006
+    initial_temp: 21.0
+    outdoor_temp_offset: 0.8
+
+  B06:
+    name: "Library"
+    floor_area_m2: 1500
+    hvac_capacity_kw: 20.0
+    max_occupancy: 200
+    alpha: 0.0010
+    beta: 0.012
+    gamma: 0.005
+    initial_temp: 21.5
+    outdoor_temp_offset: -0.2
+
+  B07:
+    name: "Sports Complex"
+    floor_area_m2: 3000
+    hvac_capacity_kw: 25.0
+    max_occupancy: 300
+    alpha: 0.0025
+    beta: 0.008
+    gamma: 0.012
+    initial_temp: 20.0
+    outdoor_temp_offset: 1.0
+
+  B08:
+    name: "Medical Faculty"
+    floor_area_m2: 1100
+    hvac_capacity_kw: 22.0
+    max_occupancy: 70
+    alpha: 0.0016
+    beta: 0.011
+    gamma: 0.008
+    initial_temp: 22.0
+    outdoor_temp_offset: 0.0
+
+  B09:
+    name: "Computer Science Block"
+    floor_area_m2: 800
+    hvac_capacity_kw: 20.0
+    max_occupancy: 80
+    alpha: 0.0019
+    beta: 0.010
+    gamma: 0.009
+    initial_temp: 23.0
+    outdoor_temp_offset: 0.3
+
+  B10:
+    name: "Cafeteria & Student Centre"
+    floor_area_m2: 700
+    hvac_capacity_kw: 18.0
+    max_occupancy: 100
+    alpha: 0.0023
+    beta: 0.009
+    gamma: 0.011
+    initial_temp: 21.5
+    outdoor_temp_offset: 0.5
+
+  B11:
+    name: "Research Institute"
+    floor_area_m2: 1300
+    hvac_capacity_kw: 25.0
+    max_occupancy: 60
+    alpha: 0.0014
+    beta: 0.013
+    gamma: 0.007
+    initial_temp: 22.5
+    outdoor_temp_offset: -0.1
+
+  B12:
+    name: "Student Dormitory West"
+    floor_area_m2: 2200
+    hvac_capacity_kw: 18.0
+    max_occupancy: 160
+    alpha: 0.0011
+    beta: 0.013
+    gamma: 0.006
+    initial_temp: 21.0
+    outdoor_temp_offset: 0.7
