@@ -1,0 +1,57 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Data
+data/raw/*.parquet
+data/processed/
+data/scenarios/*.parquet
+data/audit/*.jsonl
+data/audit/*.db
+
+# Models & Checkpoints
+models/lstm/checkpoints/*.pt
+models/lstm/checkpoints/*.pkl
+
+# Environment
+.env
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb~
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.coveragerc
+
+# MLflow
+mlruns/
+mlflow.db
+
+# Docker
+.docker/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Distribution
+*.zip
+*.tar.gz
