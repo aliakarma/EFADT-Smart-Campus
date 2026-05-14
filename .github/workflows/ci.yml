@@ -1,0 +1,60 @@
+name: EFADT CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint with ruff
+        run: |
+          pip install ruff
+          ruff check . --ignore E501,E402,F401 || true
+
+      - name: Run smoke tests
+        run: python tests/smoke_test.py
+
+      - name: Run core tests
+        run: pytest tests/test_core.py -v --tb=short -x --timeout=120
+
+      - name: Run API tests
+        run: pytest tests/test_api.py -v --tb=short --timeout=60
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t efadt-smart-campus:${{ github.sha }} .
+
+      - name: Test container health
+        run: |
+          docker run -d --name efadt-test -p 8000:8000 efadt-smart-campus:${{ github.sha }}
+          sleep 15
+          curl -f http://localhost:8000/health || (docker logs efadt-test && exit 1)
+          docker stop efadt-test
