@@ -1,0 +1,81 @@
+version: "3.9"
+
+services:
+  # ── EFADT API Server ────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: efadt-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./configs:/app/configs
+    environment:
+      - CONFIG_PATH=configs/hyperparams.yaml
+      - BUILDING_CONFIG=configs/building_params.yaml
+      - PYTHONPATH=/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - efadt-net
+
+  # ── Governance Dashboard ────────────────────────────────────────────────────
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: efadt-dashboard
+    command: streamlit run governance/dashboard/app.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./configs:/app/configs
+    environment:
+      - PYTHONPATH=/app
+      - API_URL=http://api:8000
+    depends_on:
+      - api
+    networks:
+      - efadt-net
+
+  # ── Prometheus Monitoring ───────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: efadt-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - efadt-net
+
+  # ── MLflow Experiment Tracking ─────────────────────────────────────────────
+  mlflow:
+    image: python:3.11-slim
+    container_name: efadt-mlflow
+    command: >
+      sh -c "pip install mlflow -q && 
+             mlflow server --host 0.0.0.0 --port 5000 
+             --backend-store-uri sqlite:///mlflow.db 
+             --default-artifact-root /mlruns"
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlruns
+    networks:
+      - efadt-net
+
+networks:
+  efadt-net:
+    driver: bridge
+
+volumes:
+  mlflow_data:
