@@ -251,6 +251,20 @@ We conducted a two-sided Wilcoxon signed-rank test comparing the MAE of the prop
 
 ---
 
+## 🎲 Reproducibility
+
+All stochastic operations are seeded. To reproduce with a specific seed:
+
+```bash
+make generate-data SEED=42
+make train-fl SEED=42
+make evaluate SEED=42
+```
+
+Two sequential runs with the same seed produce bit-identical training curves and metrics.
+
+---
+
 ## 🔒 Privacy Guarantee
 
 EFADT satisfies (ε=1.0, δ=1e-5)-DP per round with Gaussian mechanism:

@@ -7,6 +7,7 @@ PYTHON   := python
 PIP      := pip
 CONFIG   := configs/hyperparams.yaml
 BCONFIG  := configs/building_params.yaml
+SEED     ?= 42
 
 help:
 	@echo ""
@@ -47,7 +48,8 @@ generate-data:
 	  --config $(CONFIG) \
 	  --building-config $(BCONFIG) \
 	  --n-buildings 12 \
-	  --n-days 365
+	  --n-days 365 \
+	  --seed $(SEED)
 
 generate-quick:
 	$(PYTHON) -m data.generation.generate_dataset \
@@ -61,7 +63,8 @@ train-fl: generate-data
 	$(PYTHON) -m federated.simulation \
 	  --config $(CONFIG) \
 	  --building-config $(BCONFIG) \
-	  --n-buildings 12
+	  --n-buildings 12 \
+	  --seed $(SEED)
 
 train-quick:
 	$(PYTHON) -m data.generation.generate_dataset \
@@ -73,7 +76,8 @@ evaluate:
 	$(PYTHON) scripts/evaluate_checkpoint.py \
 	  --checkpoint-dir models/lstm/checkpoints \
 	  --data-dir data/raw \
-	  --output results/ablation/full_results.json
+	  --seed $(SEED) \
+	  --output results/ablation/full_results_seed$(SEED).json
 
 eval-multi-seed:
 	$(PYTHON) scripts/multi_seed_eval.py \
