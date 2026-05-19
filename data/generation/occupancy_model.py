@@ -88,17 +88,37 @@ def generate_occupancy_series(
     if rng is None:
         rng = np.random.default_rng(42)
 
-    occupancy = np.zeros(n_steps, dtype=float)
+    months = timestamps.month.to_numpy()
+    dows = timestamps.dayofweek.to_numpy()
+    hours = timestamps.hour.to_numpy()
 
-    for i in range(n_steps):
-        ts = timestamps[i]
-        weights = get_schedule_weights(ts.hour, ts.dayofweek, ts.month)
-        component = rng.choice(len(base_rates), p=weights)
-        rate = base_rates[component]
-        occ = poisson.rvs(mu=max(rate, 0.1), random_state=rng.integers(0, 2**31))
-        # Add Gaussian residual (sensor/behavioural noise)
-        noise = rng.normal(0, noise_std)
-        occupancy[i] = occ + noise
+    weights = np.zeros((n_steps, 3))
+    
+    # Case 1: Holiday or weekend
+    mask1 = (months == 7) | (months == 8) | (dows >= 5)
+    weights[mask1] = [0.95, 0.04, 0.01]
+    
+    # Case 2: Weekday Peak Exam
+    mask2 = ~mask1 & ((hours >= 8) & (hours <= 18)) & ((months == 4) | (months == 5) | (months == 11) | (months == 12))
+    weights[mask2] = [0.05, 0.30, 0.65]
+    
+    # Case 3: Weekday Peak Regular
+    mask3 = ~mask1 & ((hours >= 8) & (hours <= 18)) & ~((months == 4) | (months == 5) | (months == 11) | (months == 12))
+    weights[mask3] = [0.10, 0.65, 0.25]
+    
+    # Case 4: Weekday Off-Peak
+    mask4 = ~mask1 & ~((hours >= 8) & (hours <= 18))
+    weights[mask4] = [0.70, 0.25, 0.05]
+
+    rands = rng.uniform(0, 1, n_steps)
+    cum_weights = np.cumsum(weights, axis=1)
+    components = (rands[:, np.newaxis] > cum_weights[:, :2]).sum(axis=1)
+
+    rates = base_rates[components]
+    rates = np.maximum(rates, 0.1)
+    occ = rng.poisson(rates)
+    noise = rng.normal(0, noise_std, n_steps)
+    occupancy = occ + noise
 
     # Clip to valid range and return as integers
     occupancy = np.clip(np.round(occupancy), 0, max_occupancy).astype(int)

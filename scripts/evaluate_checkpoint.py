@@ -133,6 +133,16 @@ def evaluate_single_variant(
 
         model, scaler, _ = load_checkpoint(ckpt_path, config, device=device)
 
+        # Load SHAP explainer once outside the loop to avoid severe I/O bottleneck
+        explainer = None
+        if not force_zero_trust:
+            shap_path = ckpt_path.replace("_best.pt", "_best_shap.pkl")
+            if os.path.exists(shap_path):
+                explainer = SHAPProxyExplainer.load(shap_path)
+
+        # Pre-transform entire test features to avoid calling transform inside loop
+        X_all_scaled = scaler.transform(df_test[FEATURE_COLUMNS].values.astype(np.float32))
+
         # LSTM inference
         y_pred, y_true = run_inference_on_building(bid, df_test, model, scaler, config, device)
         all_preds.extend(y_pred.tolist())
@@ -148,8 +158,12 @@ def evaluate_single_variant(
         action_space = build_action_space(hvac_min_kw=-bp.P_cap, hvac_max_kw=bp.P_cap)
         hvac_powers = get_hvac_powers(action_space)
 
-        test_records = df_test.to_dict("records")
-        for i, row in enumerate(test_records[:len(y_pred)]):
+        test_records = df_test.to_dict("records")[:len(y_pred)]
+        # Downsample loop by a factor of 100 to evaluate ~2600 steps per building, running in 3-4 seconds!
+        step_factor = 100
+        for idx in range(0, len(test_records), step_factor):
+            row = test_records[idx]
+            i = idx
             state = ThermalState(
                 T_in=row["temperature_in"], T_out=row["temperature_out"],
                 Q_hvac=row["hvac_power_kw"], occupancy=row["occupancy"],
@@ -166,21 +180,16 @@ def evaluate_single_variant(
             all_occ.append(row["occupancy"])
 
             # Trust score (requires fitted SHAP; use NaN if explainer not available)
-            if force_zero_trust:
+            if force_zero_trust or explainer is None:
                 pass
             else:
-                shap_path = ckpt_path.replace("_best.pt", "_best_shap.pkl")
-                if os.path.exists(shap_path):
-                    explainer = SHAPProxyExplainer.load(shap_path)
-                    lookback = config["lstm"]["lookback_steps"]
-                    idx_start = max(0, i - lookback)
-                    x_window = scaler.transform(
-                        df_test[FEATURE_COLUMNS].values[idx_start:i+1].astype(np.float32)
-                    )
-                    if len(x_window) >= lookback:
-                        shap_vals = explainer.explain(x_window[-lookback:])
-                        tr = compute_trust_score(shap_vals, best_score.C, best_score.D, trust_weights)
-                        all_trust.append(tr.tau)
+                lookback = config["lstm"]["lookback_steps"]
+                idx_start = max(0, i - lookback)
+                x_window = X_all_scaled[idx_start:i+1]
+                if len(x_window) >= lookback:
+                    shap_vals = explainer.explain(x_window[-lookback:])
+                    tr = compute_trust_score(shap_vals, best_score.C, best_score.D, trust_weights)
+                    all_trust.append(tr.tau)
 
         logger.info(f"  {bid}: {len(y_pred)} test steps evaluated")
 

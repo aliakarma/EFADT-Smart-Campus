@@ -79,7 +79,13 @@ class EFADTClient(fl.client.NumPyClient):
         self.clip_norm = dp_cfg["max_grad_norm"]
 
         # Prepare local data (stays on-device; only used for local training)
-        train_ds, val_ds, self.scaler = prepare_data(df, lookback=self.lookback)
+        data_cfg = config.get("data", {})
+        train_ds, val_ds, self.scaler = prepare_data(
+            df,
+            lookback=self.lookback,
+            train_months=data_cfg.get("train_months", [1,2,3,4,5,6]),
+            val_months=data_cfg.get("val_months", [7,8,9]),
+        )
         self.train_loader = DataLoader(train_ds, batch_size=self.batch_size, shuffle=True, drop_last=True)
         self.val_loader = DataLoader(val_ds, batch_size=self.batch_size * 2, shuffle=False)
         self.n_train_examples = len(train_ds)

@@ -131,22 +131,24 @@ def simulate_building_thermal_series(
     if rng is None:
         rng = np.random.default_rng(42)
 
+    months = timestamps.month.to_numpy()
+    hours = timestamps.hour.to_numpy()
+    base_temps = np.array([SAUDI_MONTHLY_TEMPS[m] for m in months])
+    diurnal = DIURNAL_AMPLITUDE * np.cos(2 * np.pi * (hours - 14) / 24)
+    noise = rng.normal(0, noise_std, n_steps)
+    T_out_series = base_temps + diurnal + noise + outdoor_offset
+
     T_in_series = np.zeros(n_steps)
-    T_out_series = np.zeros(n_steps)
-
     T_in = initial_temp
+    
+    measurement_noise = rng.normal(0, 0.05, n_steps)
     for i in range(n_steps):
-        ts = timestamps[i]
-        T_out = outdoor_temperature(ts.month, ts.hour, noise_std=noise_std, rng=rng)
-        T_out += outdoor_offset
-        T_out_series[i] = T_out
-
+        T_out = T_out_series[i]
         T_in = euler_step(
             T_in, T_out, hvac_power[i], occupancy[i],
             alpha, beta, gamma, kappa, dt
         )
-        # Add small measurement noise to indoor sensor
-        T_in_series[i] = T_in + rng.normal(0, 0.05)
+        T_in_series[i] = T_in + measurement_noise[i]
 
     return T_in_series, T_out_series
 

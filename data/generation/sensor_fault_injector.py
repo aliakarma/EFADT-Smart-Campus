@@ -54,16 +54,22 @@ def inject_sensor_faults(
     # Track fault mask
     fault_mask = np.zeros(n, dtype=bool)
 
-    for col in columns_to_affect:
+    # Convert to numeric columns values to avoid Pandas .loc indexing overhead
+    col_indices = [df_out.columns.get_loc(col) for col in columns_to_affect]
+    vals = df_out.values
+
+    for idx, col in zip(col_indices, columns_to_affect):
         # Determine fault start positions
         n_faults = max(1, int(fault_rate * n / fault_duration_steps))
         fault_starts = rng.choice(n - fault_duration_steps, size=n_faults, replace=False)
 
         for start in fault_starts:
             end = min(start + fault_duration_steps, n)
-            df_out.loc[df_out.index[start:end], col] = np.nan
+            vals[start:end, idx] = np.nan
             fault_mask[start:end] = True
 
+    # Re-assign numeric columns back
+    df_out[columns_to_affect] = vals[:, col_indices]
     df_out["sensor_fault"] = fault_mask
 
     # Fill faults according to strategy

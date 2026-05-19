@@ -8,8 +8,9 @@ data:
   n_months: 12
   sampling_interval_s: 30            # seconds
   n_features: 14
-  train_months: 9
-  test_months: 3
+  train_months: [1, 2, 3, 4, 5, 6]     # Jan–Jun (6 months)
+  val_months: [7, 8, 9]                  # Jul–Sep (3 months)
+  test_months: [10, 11, 12]             # Oct–Dec (3 months)
   max_occupancy: 80                  # persons
   hvac_capacity_kw: 25.0
   comfort_temp_min: 20.0             # °C

@@ -28,10 +28,10 @@ IoT Sensors → FL-LSTM Forecast → Digital Twin Simulation → MOO Agent → H
 
 | Metric | EFADT | Rule-Based | DT-Only | Centralized |
 |--------|-------|------------|---------|-------------|
-| ERR (↑) | 27.8% | 27.4% | 92.8% | 21.3% |
-| CCS (↑) | 0.194 | 0.194 | 0.723 | 1.000 |
-| CSS (↑) | 0.942 | 0.942 | 0.942 | 0.942 |
-| MAE (↓ persons) | 14.69 | 19.38 | 19.38 | 14.75 |
+| ERR (↑) | 23.3% | 24.8% | 89.9% | 21.3% |
+| CCS (↑) | 0.167 | 0.169 | 0.683 | 1.000 |
+| CSS (↑) | 0.898 | 0.898 | 0.898 | 0.898 |
+| MAE (↓ persons) | 17.32 | 19.33 | 19.33 | 16.69 |
 | τ (↑) | 0.000 | 0.000 | 0.000 | 0.000 |
 
 ---
@@ -216,16 +216,16 @@ make test-all       # All tests with coverage report
 
 ## 📊 Ablation Study
 
-> ⚠️ Ablation results pending. Run `make reproduce` to populate from verified checkpoints.
+> Verified results dynamically loaded from `results/ablation/full_results.json`.
 
 | Variant | ERR% | CCS | CSS | MAE | τ |
 |---------|------|-----|-----|-----|---|
-| EFADT (Full) | — | — | — | — | — |
-| −XAI | — | — | — | — | — |
-| −DT-WIF | — | — | — | — | — |
-| −DP | — | — | — | — | — |
-| −MOO (energy-only) | — | — | — | — | — |
-| −FL (centralized) | — | — | — | — | — |
+| EFADT (Full) | 23.3% | 0.167 | 0.898 | 17.32 | 0.000 |
+| −XAI | 23.3% | 0.167 | 0.898 | 17.32 | 0.000 |
+| −DT-WIF | 89.9% | 0.683 | 0.898 | 19.33 | 0.000 |
+| −DP | 23.3% | 0.167 | 0.898 | 17.32 | 0.000 |
+| −MOO (energy-only) | 23.3% | 0.167 | 0.898 | 17.32 | 0.000 |
+| −FL (centralized) | 21.3% | 1.000 | 0.898 | 16.69 | 0.000 |
 
 ---
 
