@@ -11,12 +11,19 @@ pip install -r requirements.txt
 pip install ruff pytest pytest-asyncio
 ```
 
-## Running Tests
+## Running Tests & CI
 
 ```bash
 make smoke      # Quick validation
 make test       # Full pytest suite
+make ci         # Full local CI (lint + unit + integration + smoke + eval pipeline)
 ```
+
+## Reproducibility
+
+Before submitting a major PR, please verify reproducibility using the provided wrappers:
+- Windows: `reproduce.bat`
+- Linux/Mac: `./reproduce.sh`
 
 ## Code Style
 

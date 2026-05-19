@@ -3194,7 +3194,7 @@ Execute the complete reproduction pipeline from a clean state and certify all ou
 
 ```bash
 # ── Clean state ──────────────────────────────────────────────────────────────
-git clone https://github.com/your-org/efadt-smart-campus.git efadt-clean
+git clone https://github.com/aliakarma/efadt-smart-campus.git efadt-clean
 cd efadt-clean
 make env
 source venv/Scripts/activate

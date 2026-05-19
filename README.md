@@ -121,6 +121,13 @@ EFADT applies $(\varepsilon=1.0, \delta=1\times10^{-5})$-DP **per FL round** usi
 
 ---
 
+## Experimental Setup & Compute Requirements
+
+- **Hyperparameter Search Space**: The MOO agent utility weights ($\lambda_e, \lambda_c, \lambda_d$) were optimized via grid search over $[0, 1]$ in steps of 0.05, constrained by $\lambda_e + \lambda_c + \lambda_d = 1.0$. The optimal found weights are $\lambda_e=0.5, \lambda_c=0.35, \lambda_d=0.15$.
+- **Compute Requirements**: A complete single-seed reproduction of the 12-building dataset generation, 100-round federated training, and comprehensive evaluation pipeline requires approximately **1.5 to 2.5 CPU hours** on a modern multi-core processor (e.g., Intel i7 / AMD Ryzen 7). No GPU is strictly required.
+
+---
+
 ## Statistical Validity
 
 Statistical validity is evaluated using:
