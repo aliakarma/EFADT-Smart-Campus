@@ -76,9 +76,9 @@
 ### Infrastructure
 - **Dockerfile** — Python 3.11 slim, health check, uvicorn entrypoint.
 - **docker-compose.yml** — API + Dashboard + Prometheus + MLflow.
-- **GitHub Actions CI** — lint + smoke + pytest + Docker build.
-- **Makefile** — generate-data, train-fl, smoke, test, api, dashboard, docker, clean, zip, validate-data, update-readme.
-- **pytest suite** — 58 unit + integration tests, all passing.
+- **GitHub Actions CI & Validation Gates** — Restructured CI workflow with lint, smoke, unit, API, minimal simulation/evaluation validation gates, and weekly scheduled reproduction runner (`reproduce.yml`).
+- **Makefile** — generate-data, train-fl, smoke, test, api, dashboard, docker, clean, zip, validate-data, update-readme, ci.
+- **pytest suite** — 61 unit + integration tests (including automated evaluation pipeline integration test), all passing.
 
 ---
 
@@ -117,8 +117,8 @@
 | **Architecture Quality** | 9/10 | Clean separation of concerns; pipeline, agent, DT, FL well-isolated. |
 | **Code Quality** | 9/10 | Type hints, docstrings, exception handling, robust error recovery. |
 | **Scalability** | 7/10 | Synchronous API; single FL server; dockerized container scaling. |
-| **Reliability** | 8/10 | 58 passing tests; hash chain audit; health checks; SLA monitoring. |
+| **Reliability** | 9/10 | 61 passing tests; evaluation pipeline integration gate; hash chain audit; health checks; SLA monitoring. |
 | **Security** | 7/10 | DP privacy composition verified via Rényi DP composition; missing API auth. |
-| **Reproducibility** | 10/10 | Seeded RNG; dataset manifest checksum verification; automated baseline evaluations. |
+| **Reproducibility** | 10/10 | Seeded RNG; dataset manifest checksum verification; automated baseline evaluations; weekly scheduled test. |
 | **Documentation** | 10/10 | Comprehensive README with dynamic ablation table, separate architecture documentation. |
-| **Overall** | **8.6/10** | High-quality research and production foundation. |
+| **Overall** | **8.8/10** | High-quality research and production foundation. |

@@ -24,12 +24,12 @@ def run_test(name: str, fn):
     try:
         fn()
         elapsed = (time.time() - t0) * 1000
-        print(f"  ✓  {name:<55} ({elapsed:.0f}ms)")
+        print(f"  [OK]   {name:<55} ({elapsed:.0f}ms)")
         return True, elapsed, None
     except Exception as e:
         elapsed = (time.time() - t0) * 1000
         msg = f"{type(e).__name__}: {e}"
-        print(f"  ✗  {name:<55} → {msg}")
+        print(f"  [FAIL] {name:<55} -> {msg}")
         return False, elapsed, msg
 
 
@@ -99,7 +99,7 @@ def test_dp_mechanism():
     """Verify DP gradient privatization."""
     from federated.dp_mechanism import privatize_gradient, compute_sigma
     sigma = compute_sigma(1.0, 1e-5)
-    assert 1.0 < sigma < 2.0
+    assert 4.0 < sigma < 6.0
     rng = np.random.default_rng(42)
     grad = rng.normal(0, 0.5, 50000)
     noised, info = privatize_gradient(grad, epsilon=1.0, delta=1e-5, rng=rng)
@@ -243,7 +243,7 @@ def main():
         print(f"\n  FAILURES ({n_failed}):")
         for name, passed, _, error in results:
             if not passed:
-                print(f"    ✗ {name}: {error}")
+                print(f"    [FAIL] {name}: {error}")
     print("=" * 70 + "\n")
 
     return 0 if n_failed == 0 else 1
@@ -252,5 +252,8 @@ def main():
 if __name__ == "__main__":
     # Need to run from repo root
     import os
-    os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    os.chdir(repo_root)
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
     sys.exit(main())

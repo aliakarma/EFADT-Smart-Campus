@@ -1,7 +1,7 @@
 # ============================================================
 # EFADT — Makefile
 # ============================================================
-.PHONY: help setup generate-data train-fl test smoke lint api dashboard clean zip validate-data update-readme
+.PHONY: help setup generate-data train-fl test smoke lint api dashboard clean zip validate-data update-readme ci
 
 PYTHON   := python
 PIP      := pip
@@ -103,6 +103,14 @@ reproduce: generate-data train-fl evaluate
 
 	@echo "✓ Full reproduction pipeline complete"
 	@cat results/ablation/full_results.json
+
+
+ci:
+	ruff check . --ignore E501,E402
+	pytest tests/test_core.py tests/test_no_leakage.py \
+	       tests/test_api.py tests/test_evaluation_pipeline.py \
+	       -v --tb=short -x
+	python tests/smoke_test.py
 
 # ── Testing ────────────────────────────────────────────────────────────────────
 smoke:

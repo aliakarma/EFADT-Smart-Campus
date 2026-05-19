@@ -2,7 +2,7 @@ name: EFADT CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, "remediation/*"]
   pull_request:
     branches: [main]
 
@@ -12,55 +12,61 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.10", "3.11"]
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-
       - name: Install dependencies
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Lint with ruff
-        run: |
-          pip install ruff
-          ruff check . --ignore E501,E402,F401 || true
-
-      - name: Run smoke tests
+          pip install -r requirements-dev.txt
+      - name: Lint
+        run: ruff check . --ignore E501,E402
+      - name: Unit tests
+        run: pytest tests/test_core.py tests/test_no_leakage.py -v --tb=short -x
+      - name: API tests
+        run: pytest tests/test_api.py -v --tb=short
+      - name: Smoke test
         run: python tests/smoke_test.py
-
-      - name: Run core tests
-        run: pytest tests/test_core.py -v --tb=short -x --timeout=120
-
-      - name: Run API tests
-        run: pytest tests/test_api.py -v --tb=short --timeout=60
-
-      - name: Run minimal FL simulation
+      - name: Minimal FL simulation
         run: |
-          python -m data.generation.generate_dataset --n-buildings 2 --n-days 5
-          python -m federated.simulation --n-rounds 3 --n-buildings 2
-        timeout-minutes: 10
+          python -m data.generation.generate_dataset --n-buildings 2 --n-days 7
+          python -m federated.simulation --n-rounds 3 --n-buildings 2 --seed 42
+        timeout-minutes: 15
+      - name: Minimal evaluation pipeline
+        run: |
+          python -m models.lstm.train_local --building-id B01 --data-path data/raw
+          ls models/lstm/checkpoints/B01_best.pt models/lstm/checkpoints/B01_best_scaler.pkl
+          python scripts/evaluate_checkpoint.py \
+            --checkpoint-dir models/lstm/checkpoints \
+            --data-dir data/raw \
+            --test-months 1 \
+            --n-buildings 1 \
+            --output /tmp/ci_results.json
+          python -c "
+          import json
+          with open('/tmp/ci_results.json') as f:
+              r = json.load(f)
+          assert r['results'], 'No results in output'
+          print('Eval pipeline OK:', json.dumps(r['results'], indent=2))
+          "
+      - name: Dataset integrity
+        run: python scripts/validate_dataset.py --data-dir data/raw
 
   docker:
     runs-on: ubuntu-latest
     needs: test
     if: github.ref == 'refs/heads/main'
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Build Docker image
         run: docker build -t efadt-smart-campus:${{ github.sha }} .
-
       - name: Test container health
         run: |
           docker run -d --name efadt-test -p 8000:8000 efadt-smart-campus:${{ github.sha }}
           sleep 15
-          curl -f http://localhost:8000/health || (docker logs efadt-test && exit 1)
+          curl -f http://localhost:8000/health
           docker stop efadt-test

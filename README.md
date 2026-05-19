@@ -1,6 +1,7 @@
 # EFADT — Explainable Federated Agentic Digital Twin
 
 [![CI](https://github.com/your-org/efadt-smart-campus/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/efadt-smart-campus/actions)
+[![Coverage](https://codecov.io/gh/your-org/efadt-smart-campus/badge.svg)](https://codecov.io/gh/your-org/efadt-smart-campus)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![FastAPI](https://img.shields.io/badge/API-FastAPI-009688.svg)](https://fastapi.tiangolo.com)
@@ -175,10 +176,12 @@ docker compose up -d
 
 Run tests with disabled Pytest autoloader:
 ```bash
-make smoke        # Fast smoke test
-make test         # Unit tests
-make test-all     # All tests with coverage report
+make ci           # Full local CI (lint + unit + integration + smoke + eval pipeline)
+make test         # Unit tests only
+make smoke        # Smoke tests only
 ```
+
+CI enforces: unit tests, no-leakage tests, API tests, end-to-end eval pipeline (scaler + inference + metrics JSON).
 
 ---
 
