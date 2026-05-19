@@ -146,6 +146,12 @@ def train_local(
             n_batches += 1
 
         last_loss = total_loss / max(n_batches, 1)
+        try:
+            import mlflow
+            if mlflow.active_run():
+                mlflow.log_metric("train_loss", last_loss, step=epoch)
+        except Exception:
+            pass
 
     return last_loss
 

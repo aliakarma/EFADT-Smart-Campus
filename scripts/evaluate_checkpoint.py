@@ -384,6 +384,28 @@ def main():
 
     logger.info(f"Results written to {args.output}")
 
+    # Log to MLflow
+    try:
+        import mlflow
+        mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "file:./mlruns"))
+        mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT_NAME", "efadt-campus"))
+
+        with mlflow.start_run(run_name=f"eval_seed{args.seed}"):
+            # Log hyperparameters/config info
+            mlflow.log_param("seed", args.seed)
+            mlflow.log_param("test_months", str(test_months))
+
+            # Log eval metrics
+            for variant, metrics in results.items():
+                for metric_name, value in metrics.items():
+                    if isinstance(value, (int, float)):
+                        safe_name = f"{variant.replace(' ', '_').replace('(', '').replace(')', '')}_{metric_name}"
+                        mlflow.log_metric(safe_name, value)
+            mlflow.log_artifact(args.output)
+            logger.info("Evaluation results logged to MLflow successfully.")
+    except Exception as e:
+        logger.warning(f"Failed to log evaluation results to MLflow: {e}")
+
 
 if __name__ == "__main__":
     main()
