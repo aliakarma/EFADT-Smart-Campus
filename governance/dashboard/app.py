@@ -113,7 +113,7 @@ if auto_refresh:
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("**System Config**")
-st.sidebar.markdown(f"ε = 1.0 | δ = 1e-5 | σ ≈ 1.47")
+st.sidebar.markdown(f"ε = 1.0 | δ = 1e-5 | σ ≈ 4.845")
 st.sidebar.markdown(f"FL Rounds: 100 | Buildings: 12")
 st.sidebar.markdown(f"λ_e=0.5 | λ_c=0.35 | λ_d=0.15")
 
@@ -272,8 +272,25 @@ st.plotly_chart(fig_bars, use_container_width=True)
 
 # ── Footer ─────────────────────────────────────────────────────────────────────
 st.markdown("---")
+
+# Load live results for footer (fallback gracefully if not yet generated)
+_results_path = Path("results/ablation/full_results.json")
+try:
+    with open(_results_path) as _f:
+        _r = json.load(_f)
+    _full = _r.get("results", {}).get("EFADT (Full)", {})
+    _footer_metrics = (
+        f"ERR={_full.get('ERR', 'N/A'):.1f}% | "
+        f"CCS={_full.get('CCS', 'N/A'):.3f} | "
+        f"CSS={_full.get('CSS', 'N/A'):.3f} | "
+        f"MAE={_full.get('MAE', 'N/A'):.2f} | "
+        f"τ={_full.get('tau', 'N/A'):.3f}"
+    ) if _full else "Run `make evaluate` to generate metrics."
+except (FileNotFoundError, KeyError, TypeError):
+    _footer_metrics = "Run `make evaluate` to generate metrics."
+
 st.caption(
     "EFADT — Explainable Federated Agentic Digital Twin | "
-    "ε=1.0, δ=1e-5 | 12 Buildings | FL Rounds: 100 | "
-    "ERR=34.7% | CCS=0.912 | CSS=0.963 | MAE=3.21 | τ=0.887"
+    f"ε=1.0, δ=1e-5 | σ=4.845 | 12 Buildings | FL Rounds: 100 | "
+    + _footer_metrics
 )
