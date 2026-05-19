@@ -183,27 +183,64 @@ def evaluate_dt_only(
 
 # ── Ablation Summary ─────────────────────────────────────────────────────────
 
-PAPER_RESULTS = {
-    "EFADT (Full)":       {"ERR": 34.7, "CCS": 0.912, "CSS": 0.963, "MAE": 3.21, "tau": 0.887},
-    "-XAI":               {"ERR": 34.7, "CCS": 0.912, "CSS": 0.963, "MAE": 3.21, "tau": None},
-    "-DT-WIF":            {"ERR": 28.4, "CCS": 0.864, "CSS": 0.931, "MAE": 3.68, "tau": 0.841},
-    "-DP":                {"ERR": 34.9, "CCS": 0.913, "CSS": 0.965, "MAE": 3.02, "tau": 0.891},
-    "-MOO (energy-only)": {"ERR": 37.1, "CCS": 0.841, "CSS": 0.879, "MAE": 3.21, "tau": 0.793},
-    "-FL (centralized)":  {"ERR": 21.3, "CCS": 0.876, "CSS": 0.841, "MAE": 3.47, "tau": 0.852},
+import json
+import os
+import warnings
+
+# ──────────────────────────────────────────────────────────────────────────────
+# ⚠️  PLACEHOLDER VALUES — NOT VERIFIED BY CODE
+# These numbers are TARGET values from the paper draft. They are NOT generated
+# by any training or evaluation run in this repository.
+# Replace with values from: results/ablation/full_results.json
+# after completing Phase 5 of REMEDIATION_PLAN.md.
+# ──────────────────────────────────────────────────────────────────────────────
+_PAPER_RESULTS_UNVERIFIED = {
+    "EFADT (Full)":       {"ERR": None, "CCS": None, "CSS": None, "MAE": None, "tau": None},
+    "-XAI":               {"ERR": None, "CCS": None, "CSS": None, "MAE": None, "tau": None},
+    "-DT-WIF":            {"ERR": None, "CCS": None, "CSS": None, "MAE": None, "tau": None},
+    "-DP":                {"ERR": None, "CCS": None, "CSS": None, "MAE": None, "tau": None},
+    "-MOO (energy-only)": {"ERR": None, "CCS": None, "CSS": None, "MAE": None, "tau": None},
+    "-FL (centralized)":  {"ERR": None, "CCS": None, "CSS": None, "MAE": None, "tau": None},
 }
 
 
+def _load_results() -> dict:
+    """Load verified results from results/ablation/full_results.json if available."""
+    path = os.path.join(os.path.dirname(__file__), "..", "results", "ablation", "full_results.json")
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    warnings.warn(
+        "results/ablation/full_results.json not found. "
+        "PAPER_RESULTS contains None placeholders. "
+        "Run: python scripts/evaluate_checkpoint.py to generate real results.",
+        UserWarning,
+        stacklevel=2,
+    )
+    return _PAPER_RESULTS_UNVERIFIED
+
+
+PAPER_RESULTS = _load_results()
+
+
 def print_ablation_table() -> None:
-    """Print the paper's ablation results as a formatted table."""
+    """Print the ablation results as a formatted table."""
     print("\n" + "=" * 80)
     print(f"{'Variant':<25} {'ERR%':>6} {'CCS':>6} {'CSS':>6} {'MAE':>6} {'τ':>6}")
     print("-" * 80)
     for name, metrics in PAPER_RESULTS.items():
-        tau_str = f"{metrics['tau']:.3f}" if metrics["tau"] is not None else "  —  "
-        print(
-            f"{name:<25} {metrics['ERR']:>6.1f} {metrics['CCS']:>6.3f} "
-            f"{metrics['CSS']:>6.3f} {metrics['MAE']:>6.2f} {tau_str:>6}"
-        )
+        row_vals = []
+        for key in ["ERR", "CCS", "CSS", "MAE", "tau"]:
+            val = metrics.get(key)
+            if val is None:
+                row_vals.append("  —  ")
+            elif key == "ERR":
+                row_vals.append(f"{val:>6.1f}")
+            elif key == "MAE":
+                row_vals.append(f"{val:>6.2f}")
+            else:
+                row_vals.append(f"{val:>6.3f}")
+        print(f"{name:<25} {' '.join(row_vals)}")
     print("=" * 80)
 
 
