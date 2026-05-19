@@ -71,12 +71,27 @@ def prepare_data(
 
     df = df.dropna(subset=[TARGET_COLUMN]).copy()
 
-    # Calendar split — strictly temporal, no random sampling
-    train_mask = df.index.month.isin(train_months)
-    val_mask = df.index.month.isin(val_months)
+    # Get unique months in the dataset
+    unique_months = df.index.month.unique().tolist()
+    has_train = any(m in unique_months for m in train_months)
+    has_val = any(m in unique_months for m in val_months)
 
-    df_train = df[train_mask]
-    df_val = df[val_mask]
+    if not (has_train and has_val):
+        # Fallback to temporal split (70% train, 30% val)
+        n_samples = len(df)
+        train_idx = int(n_samples * 0.7)
+        df_train = df.iloc[:train_idx]
+        df_val = df.iloc[train_idx:]
+        logger.info(
+            f"Configured months {train_months}/{val_months} not present in dataset (available: {unique_months}). "
+            f"Falling back to temporal split: train={len(df_train):,}, val={len(df_val):,}"
+        )
+    else:
+        # Calendar split — strictly temporal, no random sampling
+        train_mask = df.index.month.isin(train_months)
+        val_mask = df.index.month.isin(val_months)
+        df_train = df[train_mask]
+        df_val = df[val_mask]
 
     if len(df_train) == 0:
         raise ValueError(f"No training data for months {train_months}. Check dataset date range.")

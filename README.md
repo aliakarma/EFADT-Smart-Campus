@@ -141,11 +141,11 @@ make train-fl
 ```python
 from federated.dp_mechanism import compute_sigma, privatize_gradient
 
-sigma = compute_sigma(epsilon=1.0, delta=1e-5)   # σ ≈ 1.47
+sigma = compute_sigma(epsilon=1.0, delta=1e-5)   # σ = 4.845
 noised_grad, info = privatize_gradient(raw_grad, epsilon=1.0, delta=1e-5)
 ```
 
-- ε=1.0, δ=1e-5 (strong DP guarantee)
+- ε=1.0, δ=1e-5 per round (total budget under Rényi DP composition ε ≈ 11.15)
 - Gaussian mechanism: Δθ̃_b = clip(Δθ_b, C) + N(0, σ²C²I)
 - FedAvg aggregation across 12 buildings
 - E=5 local epochs per FL round
@@ -285,11 +285,16 @@ Two sequential runs with the same seed produce bit-identical training curves and
 
 ## 🔒 Privacy Guarantee
 
-EFADT satisfies (ε=1.0, δ=1e-5)-DP per round with Gaussian mechanism:
-- σ ≈ 1.47 (computed analytically)
+EFADT applies (ε=1.0, δ=1e-5)-DP **per FL round** using the Gaussian mechanism:
+
+- σ = 4.845 (computed: `√(2·ln(1.25/δ))/ε` with ε=1.0, δ=1e-5)
+- After 100 FL rounds, **total privacy cost under Rényi DP**: ε_total ≈ 11.15
+  (run `python scripts/compute_privacy_budget.py` for exact value)
 - Gradient clipping: C = 1.0
 - Raw sensor data **never leaves** the building node
-- Only DP-noised gradient updates transmitted
+
+> The `results/dp_audit.json` file produced during training records the
+> exact per-experiment ε_total under both basic and Rényi composition.
 
 ---
 

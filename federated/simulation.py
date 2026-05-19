@@ -26,6 +26,7 @@ import yaml
 from federated.client import create_client_fn
 from federated.server import build_server_strategy, weighted_average
 from models.lstm.architecture import build_model
+from federated.dp_mechanism import compute_sigma, estimate_total_privacy_budget
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -120,13 +121,14 @@ def run_simulation(
 
     with mlflow.start_run(run_name=f"fl_seed{seed}_rounds{n_rounds}_dp{apply_dp}"):
         # Log hyperparameters
+        sigma_val = compute_sigma(config["dp"]["epsilon"], config["dp"]["delta"])
         mlflow.log_params({
             "seed": seed,
             "n_rounds": n_rounds,
             "n_buildings": n_clients,
             "apply_dp": apply_dp,
             "epsilon": config["dp"]["epsilon"],
-            "sigma": config["dp"]["sigma"],
+            "sigma": sigma_val,
             "hidden_size": config["lstm"]["hidden_size"],
             "local_epochs": config["lstm"]["local_epochs"],
             "lambda_e": config["agent"]["lambda_e"],
@@ -134,8 +136,11 @@ def run_simulation(
             "lambda_d": config["agent"]["lambda_d"],
         })
 
+        checkpoint_dir = os.environ.get("CHECKPOINT_DIR", "models/lstm/checkpoints")
+        os.makedirs(checkpoint_dir, exist_ok=True)
+
         # Build strategy
-        strategy = build_server_strategy(config)
+        strategy = build_server_strategy(config, checkpoint_dir=checkpoint_dir, n_clients=n_clients)
 
         # Override evaluate_metrics_aggregation_fn for weighted MAE
         strategy.evaluate_metrics_aggregation_fn = weighted_average
@@ -165,6 +170,16 @@ def run_simulation(
         summary["n_buildings"] = n_clients
         summary["apply_dp"] = apply_dp
 
+        # Compute and log DP budget
+        sigma = compute_sigma(config["dp"]["epsilon"], config["dp"]["delta"])
+        total_eps = estimate_total_privacy_budget(
+            epsilon_per_round=config["dp"]["epsilon"],
+            n_rounds=n_rounds,
+            delta=config["dp"]["delta"],
+            composition="renyi",
+        )
+        logger.info(f"DP accounting: per-round ε={config['dp']['epsilon']}, σ={sigma:.4f}, ε_total={total_eps:.3f}")
+
         # Log per-round MAE from strategy
         for round_info in strategy.round_metrics:
             mlflow.log_metric("global_mae", round_info["global_mae"], step=round_info["round"])
@@ -176,8 +191,47 @@ def run_simulation(
                 "best_mae": summary.get("best_mae", -1),
             })
 
+        if apply_dp:
+            mlflow.log_metrics({
+                "dp_sigma": sigma,
+                "dp_epsilon_per_round": config["dp"]["epsilon"],
+                "dp_epsilon_total_renyi": total_eps,
+            })
+
+        # Unpack best round global parameters to Bxx_best.pt for evaluation compatibility
+        best_round = None
+        if strategy.round_metrics:
+            best_round_info = min(strategy.round_metrics, key=lambda x: x["global_mae"])
+            best_round = best_round_info["round"]
+        else:
+            best_round = n_rounds
+
+        best_pkl_path = os.path.join(checkpoint_dir, f"global_round_{best_round:04d}.pkl")
+        if os.path.exists(best_pkl_path):
+            import pickle
+            logger.info(f"Unpacking best global model checkpoint from {best_pkl_path} for all buildings...")
+            with open(best_pkl_path, "rb") as f:
+                ckpt_data = pickle.load(f)
+            ndarrays = ckpt_data["parameters"]
+
+            from models.lstm.architecture import build_model
+            dummy_model = build_model(config, device=torch.device("cpu"))
+            params_dict = zip(dummy_model.state_dict().keys(), ndarrays)
+            state_dict = {k: torch.tensor(v) for k, v in params_dict}
+
+            for bid in building_data.keys():
+                pt_path = os.path.join(checkpoint_dir, f"{bid}_best.pt")
+                torch.save({
+                    "epoch": best_round,
+                    "model_state_dict": state_dict,
+                    "val_mae": summary.get("best_mae", -1),
+                    "building_id": bid,
+                }, pt_path)
+                logger.info(f"Saved FL model checkpoint for {bid} to {pt_path}")
+        else:
+            logger.warning(f"Could not find best round global pickle at {best_pkl_path} to unpack.")
+
         # Log checkpoint directory as artifact
-        checkpoint_dir = "models/lstm/checkpoints"
         if os.path.exists(checkpoint_dir):
             mlflow.log_artifacts(checkpoint_dir, artifact_path="checkpoints")
 

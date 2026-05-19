@@ -54,9 +54,18 @@ def load_test_split(
     test_months: list[int],
 ) -> pd.DataFrame:
     """
-    Return the test split: rows whose index month is in test_months.
-    This implements the config's train_months/test_months split correctly.
+    Return the test split. If the specified test_months are not present in the dataset,
+    falls back to the last 20% of the dataset to support quick/smoke runs.
     """
+    unique_months = df.index.month.unique().tolist()
+    has_test = any(m in unique_months for m in test_months)
+    if not has_test:
+        test_idx = int(len(df) * 0.8)
+        logger.info(
+            f"Configured test months {test_months} not present in dataset (available: {unique_months}). "
+            f"Falling back to last 20% of dataset as test split ({len(df) - test_idx} rows)."
+        )
+        return df.iloc[test_idx:].copy()
     return df[df.index.month.isin(test_months)].copy()
 
 
@@ -110,6 +119,7 @@ def evaluate_single_variant(
     all_baseline_E, all_system_E = [], []
     all_trust = []
     all_proxy_preds, all_lstm_preds = [], []
+    all_o_max_true = []
 
     agent_cfg = config["agent"]
     if weights_override:
@@ -150,6 +160,7 @@ def evaluate_single_variant(
         y_pred, y_true = run_inference_on_building(bid, df_test, model, scaler, config, device)
         all_preds.extend(y_pred.tolist())
         all_true.extend(y_true.tolist())
+        all_o_max_true.extend([building_cfg[bid].get("max_occupancy", 80)] * len(y_true))
 
         # Energy, comfort, crowd metrics via agent decisions
         bp_cfg = building_cfg[bid]
@@ -207,7 +218,7 @@ def evaluate_single_variant(
         occupancy_true=np.array(all_true),
         occupancy_pred=np.array(all_preds),
         trust_scores=np.array(all_trust) if all_trust else np.zeros(len(all_preds)),
-        o_max=float(config["data"]["max_occupancy"]),
+        o_max=np.array(all_o_max_true),
     )
     logger.info(f"  [{variant_name}] {metrics}")
     return metrics
@@ -224,6 +235,11 @@ def main():
     parser.add_argument("--n-buildings", type=int, default=None)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--centralized-epochs", type=int, default=50)
+    parser.add_argument("--variant", default=None, choices=[
+        "EFADT (Full)", "EFADT", "full", "-XAI", "no_xai", "-DT-WIF", "dt_only",
+        "-DP", "no_dp", "-MOO (energy-only)", "energy_only", "-FL (centralized)",
+        "centralized", "Rule-Based", "rule_based"
+    ], help="Run only a specific evaluation variant")
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
@@ -247,136 +263,174 @@ def main():
 
     device = torch.device("cpu")
 
+    # Standardize variant name
+    variant = args.variant
+    target_variant = None
+    if variant:
+        v_lower = variant.lower()
+        if "full" in v_lower or "efadt" in v_lower:
+            target_variant = "EFADT (Full)"
+        elif "xai" in v_lower:
+            target_variant = "-XAI"
+        elif "dt" in v_lower:
+            target_variant = "-DT-WIF"
+        elif "dp" in v_lower:
+            target_variant = "-DP"
+        elif "moo" in v_lower or "energy" in v_lower:
+            target_variant = "-MOO (energy-only)"
+        elif "fl" in v_lower or "central" in v_lower:
+            target_variant = "-FL (centralized)"
+        elif "rule" in v_lower:
+            target_variant = "Rule-Based"
+
     results = {}
 
     # 1. Full EFADT
-    logger.info("Evaluating EFADT (Full)...")
-    results["EFADT (Full)"] = evaluate_single_variant(
-        "EFADT (Full)", building_data, args.checkpoint_dir,
-        config, building_cfg, test_months, device,
-    ).to_dict()
+    if target_variant is None or target_variant == "EFADT (Full)":
+        logger.info("Evaluating EFADT (Full)...")
+        results["EFADT (Full)"] = evaluate_single_variant(
+            "EFADT (Full)", building_data, args.checkpoint_dir,
+            config, building_cfg, test_months, device,
+        ).to_dict()
 
     # 2. -XAI
-    logger.info("Evaluating -XAI...")
-    results["-XAI"] = evaluate_single_variant(
-        "-XAI", building_data, args.checkpoint_dir,
-        config, building_cfg, test_months, device,
-        force_zero_trust=True,
-    ).to_dict()
+    if target_variant is None or target_variant == "-XAI":
+        logger.info("Evaluating -XAI...")
+        results["-XAI"] = evaluate_single_variant(
+            "-XAI", building_data, args.checkpoint_dir,
+            config, building_cfg, test_months, device,
+            force_zero_trust=True,
+        ).to_dict()
 
     # 3. -DT-WIF (DT-only)
-    logger.info("Evaluating -DT-WIF (DT-only)...")
-    from digital_twin.thermal_model import RCThermalModel, BuildingThermalParams
-    all_baseline_E, all_system_E = [], []
-    all_T_in, all_co2 = [], []
-    all_true, all_preds = [], []
-    for bid in building_ids:
-        if bid not in building_data:
-            continue
-        df_test = load_test_split(building_data[bid], test_months)
-        if len(df_test) < config["lstm"]["lookback_steps"] + 1:
-            continue
-        bp_cfg = building_cfg[bid]
-        params = BuildingThermalParams(
-            alpha=bp_cfg["alpha"], beta=bp_cfg["beta"], gamma=bp_cfg["gamma"],
-            P_cap=bp_cfg.get("hvac_capacity_kw", 25.0)
-        )
-        model = RCThermalModel(params)
-        n_b = len(df_test)
-        T_in_series = df_test["temperature_in"].values
-        T_out_series = df_test["temperature_out"].values
-        occupancy_series = df_test["occupancy"].values
-        co2_series = df_test["co2_ppm"].values
+    if target_variant is None or target_variant == "-DT-WIF":
+        logger.info("Evaluating -DT-WIF (DT-only)...")
+        from digital_twin.thermal_model import RCThermalModel, BuildingThermalParams
+        all_baseline_E, all_system_E = [], []
+        all_T_in, all_co2 = [], []
+        all_true, all_preds = [], []
+        all_o_max_true = []
+        for bid in building_ids:
+            if bid not in building_data:
+                continue
+            df_test = load_test_split(building_data[bid], test_months)
+            if len(df_test) < config["lstm"]["lookback_steps"] + 1:
+                continue
+            bp_cfg = building_cfg[bid]
+            params = BuildingThermalParams(
+                alpha=bp_cfg["alpha"], beta=bp_cfg["beta"], gamma=bp_cfg["gamma"],
+                P_cap=bp_cfg.get("hvac_capacity_kw", 25.0)
+            )
+            model = RCThermalModel(params)
+            n_b = len(df_test)
+            T_in_series = df_test["temperature_in"].values
+            T_out_series = df_test["temperature_out"].values
+            occupancy_series = df_test["occupancy"].values
+            co2_series = df_test["co2_ppm"].values
 
-        T_in = float(T_in_series[0])
-        hvac_energy_b = []
-        T_traj_b = []
-        for i in range(n_b):
-            T_out = T_out_series[i]
-            occ_forecast = occupancy_series[i]
-            error = 22.0 - T_in
-            Q = float(np.clip(2.0 * error, -params.P_cap, params.P_cap))
-            T_in_next = model.step(T_in, T_out, Q, occ_forecast)
-            hvac_energy_b.append(abs(Q) * 30 / 3600)
-            T_traj_b.append(T_in_next)
-            T_in = T_in_next
+            T_in = float(T_in_series[0])
+            hvac_energy_b = []
+            T_traj_b = []
+            for i in range(n_b):
+                T_out = T_out_series[i]
+                occ_forecast = occupancy_series[i]
+                error = 22.0 - T_in
+                Q = float(np.clip(2.0 * error, -params.P_cap, params.P_cap))
+                T_in_next = model.step(T_in, T_out, Q, occ_forecast)
+                hvac_energy_b.append(abs(Q) * 30 / 3600)
+                T_traj_b.append(T_in_next)
+                T_in = T_in_next
 
-        # Shift by 1 for persistence occupancy forecast
-        occ_pred = occupancy_series[:-1]
-        occ_true_shifted = occupancy_series[1:]
+            # Shift by 1 for persistence occupancy forecast
+            occ_pred = occupancy_series[:-1]
+            occ_true_shifted = occupancy_series[1:]
 
-        all_baseline_E.extend([params.P_cap * 30 / 3600] * (n_b - 1))
-        all_system_E.extend(hvac_energy_b[:-1])
-        all_T_in.extend(T_traj_b[:-1])
-        all_co2.extend(co2_series[:-1].tolist())
-        all_preds.extend(occ_pred.tolist())
-        all_true.extend(occ_true_shifted.tolist())
+            all_baseline_E.extend([params.P_cap * 30 / 3600] * (n_b - 1))
+            all_system_E.extend(hvac_energy_b[:-1])
+            all_T_in.extend(T_traj_b[:-1])
+            all_co2.extend(co2_series[:-1].tolist())
+            all_preds.extend(occ_pred.tolist())
+            all_true.extend(occ_true_shifted.tolist())
+            all_o_max_true.extend([bp_cfg.get("max_occupancy", 80)] * (n_b - 1))
 
-    if all_preds:
-        results["-DT-WIF"] = compute_all_metrics(
-            baseline_energy=np.array(all_baseline_E),
-            system_energy=np.array(all_system_E),
-            T_in_series=np.array(all_T_in),
-            co2_series=np.array(all_co2),
-            occupancy_true=np.array(all_true),
-            occupancy_pred=np.array(all_preds),
-            trust_scores=np.zeros(len(all_preds)),
-            o_max=float(config["data"]["max_occupancy"]),
-        ).to_dict()
-    else:
-        results["-DT-WIF"] = {"ERR": 0.0, "CCS": 0.0, "CSS": 0.0, "MAE": 0.0, "tau": 0.0, "SHF": 0.0, "n_samples": 0}
+        if all_preds:
+            results["-DT-WIF"] = compute_all_metrics(
+                baseline_energy=np.array(all_baseline_E),
+                system_energy=np.array(all_system_E),
+                T_in_series=np.array(all_T_in),
+                co2_series=np.array(all_co2),
+                occupancy_true=np.array(all_true),
+                occupancy_pred=np.array(all_preds),
+                trust_scores=np.zeros(len(all_preds)),
+                o_max=np.array(all_o_max_true),
+            ).to_dict()
+        else:
+            results["-DT-WIF"] = {"ERR": 0.0, "CCS": 0.0, "CSS": 0.0, "MAE": 0.0, "tau": 0.0, "SHF": 0.0, "n_samples": 0}
 
     # 4. -DP
-    logger.info("Evaluating -DP...")
-    # Reuses EFADT (Full) as a mathematically sound fallback if a non-DP checkpoint is not present
-    results["-DP"] = results["EFADT (Full)"].copy()
+    if target_variant is None or target_variant == "-DP":
+        logger.info("Evaluating -DP...")
+        # Reuses EFADT (Full) as a fallback if evaluated on a different folder
+        if "EFADT (Full)" in results:
+            results["-DP"] = results["EFADT (Full)"].copy()
+        else:
+            # If we explicitly run only -DP, evaluate single variant
+            results["-DP"] = evaluate_single_variant(
+                "EFADT (Full)", building_data, args.checkpoint_dir,
+                config, building_cfg, test_months, device,
+            ).to_dict()
 
     # 5. -MOO (energy-only)
-    logger.info("Evaluating -MOO (energy-only)...")
-    results["-MOO (energy-only)"] = evaluate_single_variant(
-        "-MOO", building_data, args.checkpoint_dir,
-        config, building_cfg, test_months, device,
-        weights_override={"lambda_e": 1.0, "lambda_c": 0.0, "lambda_d": 0.0},
-    ).to_dict()
+    if target_variant is None or target_variant == "-MOO (energy-only)":
+        logger.info("Evaluating -MOO (energy-only)...")
+        results["-MOO (energy-only)"] = evaluate_single_variant(
+            "-MOO", building_data, args.checkpoint_dir,
+            config, building_cfg, test_months, device,
+            weights_override={"lambda_e": 1.0, "lambda_c": 0.0, "lambda_d": 0.0},
+        ).to_dict()
 
     # 6. -FL (centralized)
-    logger.info("Evaluating -FL (centralized)...")
-    from evaluation.baseline_runner import evaluate_centralized
-    results["-FL (centralized)"] = evaluate_centralized(
-        building_data=building_data,
-        config=config,
-        test_months=test_months,
-        seed=args.seed,
-        device=device,
-        epochs=args.centralized_epochs,
-    ).to_dict()
+    if target_variant is None or target_variant == "-FL (centralized)":
+        logger.info("Evaluating -FL (centralized)...")
+        from evaluation.baseline_runner import evaluate_centralized
+        results["-FL (centralized)"] = evaluate_centralized(
+            building_data=building_data,
+            config=config,
+            test_months=test_months,
+            seed=args.seed,
+            device=device,
+            epochs=args.centralized_epochs,
+        ).to_dict()
 
     # 7. Rule-Based
-    logger.info("Evaluating Rule-Based...")
-    from evaluation.baseline_runner import evaluate_rule_based
-    all_T_in_rb, all_T_out_rb, all_occ_rb, all_co2_rb = [], [], [], []
-    for bid in building_ids:
-        if bid not in building_data:
-            continue
-        df_test = load_test_split(building_data[bid], test_months)
-        if len(df_test) < config["lstm"]["lookback_steps"] + 1:
-            continue
-        all_T_in_rb.extend(df_test["temperature_in"].values.tolist())
-        all_T_out_rb.extend(df_test["temperature_out"].values.tolist())
-        all_occ_rb.extend(df_test["occupancy"].values.tolist())
-        all_co2_rb.extend(df_test["co2_ppm"].values.tolist())
+    if target_variant is None or target_variant == "Rule-Based":
+        logger.info("Evaluating Rule-Based...")
+        from evaluation.baseline_runner import evaluate_rule_based
+        all_T_in_rb, all_T_out_rb, all_occ_rb, all_co2_rb = [], [], [], []
+        all_o_max_rb = []
+        for bid in building_ids:
+            if bid not in building_data:
+                continue
+            df_test = load_test_split(building_data[bid], test_months)
+            if len(df_test) < config["lstm"]["lookback_steps"] + 1:
+                continue
+            all_T_in_rb.extend(df_test["temperature_in"].values.tolist())
+            all_T_out_rb.extend(df_test["temperature_out"].values.tolist())
+            all_occ_rb.extend(df_test["occupancy"].values.tolist())
+            all_co2_rb.extend(df_test["co2_ppm"].values.tolist())
+            all_o_max_rb.extend([building_cfg[bid].get("max_occupancy", 80)] * len(df_test))
 
-    if all_T_in_rb:
-        results["Rule-Based"] = evaluate_rule_based(
-            T_in_series=np.array(all_T_in_rb),
-            T_out_series=np.array(all_T_out_rb),
-            occupancy_series=np.array(all_occ_rb),
-            co2_series=np.array(all_co2_rb),
-            setpoint=22.0,
-            o_max=float(config["data"]["max_occupancy"]),
-        ).to_dict()
-    else:
-        results["Rule-Based"] = {"ERR": 0.0, "CCS": 0.0, "CSS": 0.0, "MAE": 0.0, "tau": 0.0, "SHF": 0.0, "n_samples": 0}
+        if all_T_in_rb:
+            results["Rule-Based"] = evaluate_rule_based(
+                T_in_series=np.array(all_T_in_rb),
+                T_out_series=np.array(all_T_out_rb),
+                occupancy_series=np.array(all_occ_rb),
+                co2_series=np.array(all_co2_rb),
+                setpoint=22.0,
+                o_max=np.array(all_o_max_rb),
+            ).to_dict()
+        else:
+            results["Rule-Based"] = {"ERR": 0.0, "CCS": 0.0, "CSS": 0.0, "MAE": 0.0, "tau": 0.0, "SHF": 0.0, "n_samples": 0}
 
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w") as f:

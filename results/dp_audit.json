@@ -1,0 +1,14 @@
+{
+  "per_round": {
+    "epsilon": 1.0,
+    "delta": 1e-05,
+    "sigma": 4.8448
+  },
+  "total_after_rounds": {
+    "n_rounds": 100,
+    "epsilon_basic_composition": 100.0,
+    "epsilon_renyi_dp": 11.146,
+    "delta": 1e-05
+  },
+  "note": "The system satisfies (11.15, 1e-05)-DP total after 100 rounds under R\u00e9nyi DP composition. The per-round budget is \u03b5=1.0."
+}

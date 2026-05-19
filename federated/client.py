@@ -89,6 +89,14 @@ class EFADTClient(fl.client.NumPyClient):
             train_months=data_cfg.get("train_months", [1,2,3,4,5,6]),
             val_months=data_cfg.get("val_months", [7,8,9]),
         )
+        # Save client scaler for evaluation reuse
+        scaler_dir = os.environ.get("CHECKPOINT_DIR", "models/lstm/checkpoints")
+        os.makedirs(scaler_dir, exist_ok=True)
+        scaler_path = os.path.join(scaler_dir, f"{building_id}_best_scaler.pkl")
+        import pickle
+        with open(scaler_path, "wb") as f:
+            pickle.dump(self.scaler, f)
+
         self.train_loader = DataLoader(train_ds, batch_size=self.batch_size, shuffle=True, drop_last=True)
         self.val_loader = DataLoader(val_ds, batch_size=self.batch_size * 2, shuffle=False)
         self.n_train_examples = len(train_ds)

@@ -47,7 +47,8 @@ dp:
   epsilon: 1.0
   delta: 1.0e-5
   max_grad_norm: 1.0                # clipping norm C
-  sigma: 4.84                       # noise multiplier (computed from eps, delta)
+  # sigma is computed dynamically via compute_sigma(epsilon, delta)
+  # compute_sigma(1.0, 1e-5) = 4.845 (basic Gaussian mechanism)
   target_delta: 1.0e-5
 
 # --- Digital Twin ---

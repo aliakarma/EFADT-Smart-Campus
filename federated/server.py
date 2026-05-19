@@ -167,7 +167,11 @@ class EFADTFedAvgStrategy(FedAvg):
         }
 
 
-def build_server_strategy(config: dict) -> EFADTFedAvgStrategy:
+def build_server_strategy(
+    config: dict,
+    checkpoint_dir: str = "models/lstm/checkpoints",
+    n_clients: int = None
+) -> EFADTFedAvgStrategy:
     """
     Build the EFADT FedAvg strategy from config.
 
@@ -175,21 +179,33 @@ def build_server_strategy(config: dict) -> EFADTFedAvgStrategy:
     ----------
     config : dict
         Full hyperparameter configuration.
+    checkpoint_dir : str
+        Directory to save checkpoints.
+    n_clients : int, optional
+        Active client count to cap min_fit/min_evaluate/min_available.
 
     Returns
     -------
     EFADTFedAvgStrategy
     """
     fl_cfg = config["federated"]
+    min_fit = fl_cfg["min_fit_clients"]
+    min_eval = fl_cfg["min_evaluate_clients"]
+    min_avail = fl_cfg["min_available_clients"]
+
+    if n_clients is not None:
+        min_fit = min(min_fit, n_clients)
+        min_eval = min(min_eval, n_clients)
+        min_avail = min(min_avail, n_clients)
 
     strategy = EFADTFedAvgStrategy(
         convergence_mae_threshold=fl_cfg["convergence_mae_threshold"],
-        checkpoint_dir="models/lstm/checkpoints",
+        checkpoint_dir=checkpoint_dir,
         fraction_fit=fl_cfg["fraction_fit"],
         fraction_evaluate=fl_cfg["fraction_evaluate"],
-        min_fit_clients=fl_cfg["min_fit_clients"],
-        min_evaluate_clients=fl_cfg["min_evaluate_clients"],
-        min_available_clients=fl_cfg["min_available_clients"],
+        min_fit_clients=min_fit,
+        min_evaluate_clients=min_eval,
+        min_available_clients=min_avail,
     )
     return strategy
 

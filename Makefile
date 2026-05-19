@@ -84,6 +84,11 @@ eval-multi-seed:
 	  --seeds 42 0 1 \
 	  --output results/ablation/multi_seed_results.json
 
+ablations:
+	$(PYTHON) scripts/run_ablations.py \
+	  --seed $(SEED) \
+	  --checkpoint-dir models/lstm/checkpoints
+
 reproduce: generate-data train-fl evaluate
 
 	@echo "✓ Full reproduction pipeline complete"

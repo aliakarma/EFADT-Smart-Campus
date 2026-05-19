@@ -61,7 +61,7 @@ def evaluate_rule_based(
     occupancy_series: np.ndarray,
     co2_series: np.ndarray,
     setpoint: float = 22.0,
-    o_max: float = 80.0,
+    o_max: float | np.ndarray = 80.0,
 ) -> EFADTMetrics:
     """Evaluate rule-based thermostat baseline with naive persistence occupancy forecast."""
     n = len(T_in_series)
@@ -75,6 +75,12 @@ def evaluate_rule_based(
 
     baseline_energy = np.full(n - 1, 25.0 * 30 / 3600)
 
+    # Slice o_max if it is an array matching the time series length n
+    if isinstance(o_max, np.ndarray) and len(o_max) == n:
+        o_max_val = o_max[:-1]
+    else:
+        o_max_val = o_max
+
     return compute_all_metrics(
         baseline_energy=baseline_energy,
         system_energy=hvac_energy[:-1],
@@ -83,7 +89,7 @@ def evaluate_rule_based(
         occupancy_true=occ_true_shifted,
         occupancy_pred=occ_pred,       # real persistence prediction
         trust_scores=np.zeros(n - 1),  # No XAI → τ = 0
-        o_max=o_max,
+        o_max=o_max_val,
     )
 
 
@@ -176,12 +182,31 @@ def evaluate_centralized(
     elif not isinstance(test_months, (list, tuple, np.ndarray)):
         test_months = [test_months]
 
+    # Check unique months in the dataset to see if configured train/test months exist
+    unique_months = set()
+    for bid, df in building_data.items():
+        unique_months.update(df.index.month.unique().tolist())
+
+    has_train = any(m in unique_months for m in train_months)
+    has_test = any(m in unique_months for m in test_months)
+    use_fallback = not (has_train and has_test)
+
     # Pool all training data and fit a single scaler
     all_X_train, all_y_train = [], []
     for bid, df in building_data.items():
-        df_train = df[df.index.month.isin(train_months)].dropna(subset=[TARGET_COLUMN])
-        all_X_train.append(df_train[FEATURE_COLUMNS].values.astype(np.float32))
-        all_y_train.append(df_train[TARGET_COLUMN].values.astype(np.float32))
+        df_clean = df.dropna(subset=[TARGET_COLUMN])
+        if use_fallback:
+            train_idx = int(len(df_clean) * 0.7)
+            df_train = df_clean.iloc[:train_idx]
+        else:
+            df_train = df_clean[df_clean.index.month.isin(train_months)]
+        
+        if len(df_train) > 0:
+            all_X_train.append(df_train[FEATURE_COLUMNS].values.astype(np.float32))
+            all_y_train.append(df_train[TARGET_COLUMN].values.astype(np.float32))
+
+    if not all_X_train:
+        raise ValueError(f"No training data found for centralized model (available: {list(unique_months)}).")
 
     X_all = np.concatenate(all_X_train, axis=0)
     y_all = np.concatenate(all_y_train, axis=0)
@@ -208,9 +233,23 @@ def evaluate_centralized(
             optimizer.step()
 
     # Evaluate on test split
+    import yaml
+    try:
+        with open("configs/building_params.yaml") as f:
+            building_cfg = yaml.safe_load(f)["buildings"]
+    except Exception:
+        building_cfg = {}
+
     all_preds, all_true = [], []
+    all_o_max_true = []
     for bid, df in building_data.items():
-        df_test = df[df.index.month.isin(test_months)].dropna(subset=[TARGET_COLUMN])
+        df_clean = df.dropna(subset=[TARGET_COLUMN])
+        if use_fallback:
+            test_idx = int(len(df_clean) * 0.8)
+            df_test = df_clean.iloc[test_idx:]
+        else:
+            df_test = df_clean[df_clean.index.month.isin(test_months)]
+            
         if len(df_test) < lookback + 1:
             continue
         X_test = scaler.transform(df_test[FEATURE_COLUMNS].values.astype(np.float32))
@@ -223,6 +262,7 @@ def evaluate_centralized(
                 preds, _ = model(xb.to(device))
                 all_preds.extend(preds.squeeze(-1).cpu().numpy())
                 all_true.extend(yb.numpy())
+                all_o_max_true.extend([building_cfg.get(bid, {}).get("max_occupancy", 80)] * len(yb))
 
     n = len(all_true)
     baseline_E = np.full(n, 25.0 * 30 / 3600)
@@ -235,7 +275,7 @@ def evaluate_centralized(
         occupancy_true=np.array(all_true),
         occupancy_pred=np.array(all_preds),
         trust_scores=np.zeros(n),
-        o_max=float(config["data"]["max_occupancy"]),
+        o_max=np.array(all_o_max_true) if all_o_max_true else float(config["data"]["max_occupancy"]),
     )
 
 
@@ -249,7 +289,7 @@ def evaluate_dt_only(
     alpha: float = 0.0018,
     beta: float = 0.011,
     gamma: float = 0.009,
-    o_max: float = 80.0,
+    o_max: float | np.ndarray = 80.0,
 ) -> EFADTMetrics:
     """DT-Only baseline: thermal model + naive persistence occupancy forecast."""
     from digital_twin.thermal_model import RCThermalModel, BuildingThermalParams
@@ -277,6 +317,13 @@ def evaluate_dt_only(
     occ_true_shifted = occupancy_series[1:]    # ground truth: o[t+1]
 
     baseline_energy = np.full(n - 1, 25.0 * 30 / 3600)
+
+    # Slice o_max if it is an array matching length n
+    if isinstance(o_max, np.ndarray) and len(o_max) == n:
+        o_max_val = o_max[:-1]
+    else:
+        o_max_val = o_max
+
     return compute_all_metrics(
         baseline_energy=baseline_energy,
         system_energy=np.array(hvac_energy[:-1]),
@@ -285,7 +332,7 @@ def evaluate_dt_only(
         occupancy_true=occ_true_shifted,
         occupancy_pred=occ_pred,       # real persistence prediction
         trust_scores=np.zeros(n - 1),  # no XAI in DT-Only
-        o_max=o_max,
+        o_max=o_max_val,
     )
 
 
