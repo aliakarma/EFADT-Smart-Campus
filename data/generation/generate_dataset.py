@@ -148,7 +148,7 @@ def generate_building_dataset(
     })
 
     # Target: next-step occupancy (shifted by 1 for supervised learning)
-    df[TARGET_COLUMN] = df["occupancy"].shift(-1).fillna(method="ffill")
+    df[TARGET_COLUMN] = df["occupancy"].shift(-1).ffill()
     df.set_index("timestamp", inplace=True)
     return df
 
