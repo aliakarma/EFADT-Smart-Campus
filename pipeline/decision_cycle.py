@@ -93,6 +93,7 @@ class DecisionCycle:
         self.trust_weights = trust_weights or TrustWeights()
         self.audit_logger = audit_logger
         self.device = device or torch.device("cpu")
+        assert scaler is not None, "StandardScaler must be provided for feature normalization."
         self.scaler = scaler
         self.lookback = lookback
         self.latency_budget_ms = latency_budget_ms

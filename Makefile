@@ -69,6 +69,16 @@ train-quick:
 	$(PYTHON) -m federated.simulation \
 	  --n-rounds 5 --n-buildings 3
 
+evaluate:
+	$(PYTHON) scripts/evaluate_checkpoint.py \
+	  --checkpoint-dir models/lstm/checkpoints \
+	  --data-dir data/raw \
+	  --output results/ablation/full_results.json
+
+reproduce: generate-data train-fl evaluate
+	@echo "✓ Full reproduction pipeline complete"
+	@cat results/ablation/full_results.json
+
 # ── Testing ────────────────────────────────────────────────────────────────────
 smoke:
 	$(PYTHON) tests/smoke_test.py

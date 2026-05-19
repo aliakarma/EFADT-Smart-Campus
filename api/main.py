@@ -74,9 +74,21 @@ async def lifespan(app: FastAPI):
     # Audit logger
     _state["audit_logger"] = JSONLAuditLogger(log_dir="data/audit")
 
-    # SHAP explainer (unfitted — requires calibration data in production)
-    _state["shap_explainer"] = SHAPProxyExplainer()
-    _state["shap_fitted"] = False
+    # SHAP explainer (try loading if it was calibrated, otherwise init empty)
+    shap_dir = Path("models/shap")
+    shap_path = next(shap_dir.glob("*_shap_proxy.pkl"), None) if shap_dir.exists() else None
+    if shap_path and shap_path.exists():
+        try:
+            _state["shap_explainer"] = SHAPProxyExplainer.load(str(shap_path))
+            _state["shap_fitted"] = True
+            logger.info(f"Loaded calibrated SHAP explainer from {shap_path}")
+        except Exception as e:
+            logger.warning(f"Failed to load calibrated SHAP explainer: {e}")
+            _state["shap_explainer"] = SHAPProxyExplainer()
+            _state["shap_fitted"] = False
+    else:
+        _state["shap_explainer"] = SHAPProxyExplainer()
+        _state["shap_fitted"] = False
 
     _state["trust_weights"] = TrustWeights.from_config(cfg)
 
@@ -114,6 +126,12 @@ class SensorReading(BaseModel):
     hvac_power_kw: float = Field(0.0, description="Current HVAC power (kW)")
     hvac_setpoint: float = Field(22.0, description="Current HVAC setpoint (°C)")
     motion_count: int = Field(0, ge=0, description="Motion sensor triggers")
+
+
+class SHAPCalibrationRequest(BaseModel):
+    building_id: str
+    X_samples: list      # (n_samples, lookback, n_features) as nested list
+    lstm_predictions: list  # (n_samples,) LSTM outputs from training
 
 
 class DecisionRequest(BaseModel):
@@ -230,8 +248,32 @@ async def get_decision(req: DecisionRequest):
     n_feasible = sum(1 for s in all_scores if s.feasible)
 
     # SHAP explanation (stub if proxy not fitted)
-    rng = np.random.default_rng()
-    shap_values = rng.normal(0, 0.1, 14)   # Stub — replace with explainer.explain()
+    if _state.get("shap_fitted"):
+        explainer = _state["shap_explainer"]
+        n_features_expected = getattr(explainer, "_n_raw_features", 14)
+        base_feat = [
+            req.sensor.occupancy,
+            req.sensor.co2_ppm,
+            req.sensor.temperature_in,
+            req.sensor.temperature_out,
+            req.sensor.humidity,
+            req.sensor.hvac_power_kw,
+            req.sensor.hvac_setpoint,
+            req.sensor.motion_count,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0  # stubs for cyclical time
+        ]
+        if n_features_expected > 14:
+            lookback = n_features_expected // 14
+            x_instance = np.tile(base_feat, lookback)
+        else:
+            x_instance = np.array(base_feat)
+        shap_values = explainer.explain(x_instance)
+    else:
+        raise HTTPException(
+            status_code=503,
+            detail="SHAP explainer not calibrated. POST /calibrate-shap with training predictions first."
+        )
+
     trust_result = compute_trust_score(
         shap_values=shap_values,
         C_u_star=best_score.C,
@@ -292,6 +334,20 @@ async def verify_audit_chain(building_id: str):
     audit = _state["audit_logger"]
     valid = audit.verify_chain(building_id)
     return {"building_id": building_id, "chain_valid": valid}
+
+
+@app.post("/calibrate-shap", tags=["Explainability"])
+async def calibrate_shap(req: SHAPCalibrationRequest):
+    """Fit SHAP proxy on training predictions. Must be called once after FL training."""
+    X = np.array(req.X_samples, dtype=np.float32)
+    preds = np.array(req.lstm_predictions, dtype=np.float32)
+    explainer = _state["shap_explainer"]
+    explainer.fit(X, preds)
+    _state["shap_fitted"] = True
+    # Persist for restart recovery
+    Path("models/shap").mkdir(parents=True, exist_ok=True)
+    explainer.save(f"models/shap/{req.building_id}_shap_proxy.pkl")
+    return {"status": "fitted", "n_samples": len(preds)}
 
 
 @app.get("/simulate/{building_id}", tags=["Simulation"])

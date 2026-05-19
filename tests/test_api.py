@@ -41,6 +41,18 @@ def test_list_buildings(client):
 
 
 def test_decide_endpoint(client):
+    # Calibrate SHAP proxy first
+    rng = np.random.default_rng(42)
+    X_samples = rng.normal(0, 1, (10, 12, 14)).tolist()
+    lstm_predictions = rng.normal(0, 1, 10).tolist()
+    
+    cal_resp = client.post("/calibrate-shap", json={
+        "building_id": "B01",
+        "X_samples": X_samples,
+        "lstm_predictions": lstm_predictions
+    })
+    assert cal_resp.status_code == 200
+
     payload = {
         "building_id": "B01",
         "sensor": {

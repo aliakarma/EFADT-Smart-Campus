@@ -68,10 +68,19 @@ def step_run_fl(n_buildings: int, n_rounds: int, apply_dp: bool, seed: int) -> d
     return summary
 
 
-def step_evaluate(n_buildings: int) -> None:
-    logger.info("Step 3: Evaluating baselines and ablation variants...")
-    from evaluation.baseline_runner import print_ablation_table, PAPER_RESULTS
-    print_ablation_table()
+def step_evaluate(checkpoint_dir: str, data_dir: str, test_months: list, seed: int, n_buildings: int) -> None:
+    logger.info("Step 3: Evaluating from trained checkpoints...")
+    import subprocess, sys
+    result = subprocess.run([
+        sys.executable, "scripts/evaluate_checkpoint.py",
+        "--checkpoint-dir", checkpoint_dir,
+        "--data-dir", data_dir,
+        "--n-buildings", str(n_buildings),
+        "--test-months"] + [str(m) for m in test_months] + [
+        "--seed", str(seed),
+        "--output", "results/ablation/full_results.json",
+    ], check=True)
+    logger.info("Evaluation complete — results at results/ablation/full_results.json")
 
 
 def main():
@@ -100,7 +109,13 @@ def main():
         except Exception as e:
             logger.warning(f"FL simulation failed (expected without flwr): {e}")
 
-    step_evaluate(n_buildings)
+    step_evaluate(
+        checkpoint_dir="models/lstm/checkpoints",
+        data_dir="data/raw",
+        test_months=[10, 11, 12] if args.full else [1],
+        seed=args.seed,
+        n_buildings=n_buildings
+    )
 
     elapsed = time.time() - t_start
     logger.info(f"Experiment complete in {elapsed:.1f}s")

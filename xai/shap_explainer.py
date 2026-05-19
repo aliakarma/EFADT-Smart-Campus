@@ -202,6 +202,34 @@ class SHAPProxyExplainer:
         corr, _ = spearmanr(proxy_preds, lstm_preds_val)
         return float(corr)
 
+    def save(self, path: str) -> None:
+        """Persist fitted proxy and explainer to disk."""
+        import pickle
+        if not self._is_fitted:
+            raise RuntimeError("Explainer not fitted. Call fit() first.")
+        with open(path, "wb") as f:
+            pickle.dump({
+                "proxy": self.proxy,
+                "feature_names": self.feature_names,
+                "n_raw_features": self._n_raw_features,
+                "X_background": self._X_background,
+            }, f)
+        logger.info(f"SHAPProxyExplainer saved to {path}")
+
+    @classmethod
+    def load(cls, path: str) -> "SHAPProxyExplainer":
+        """Load a previously fitted proxy explainer."""
+        import pickle
+        with open(path, "rb") as f:
+            data = pickle.load(f)
+        instance = cls(feature_names=data["feature_names"])
+        instance.proxy = data["proxy"]
+        instance.explainer = shap.TreeExplainer(instance.proxy)
+        instance._n_raw_features = data["n_raw_features"]
+        instance._X_background = data["X_background"]
+        instance._is_fitted = True
+        return instance
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

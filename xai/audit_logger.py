@@ -137,6 +137,20 @@ class JSONLAuditLogger:
         -------
         AuditRecord
         """
+        if building_id not in self._last_hashes:
+            log_path = self._get_log_path(building_id)
+            if os.path.exists(log_path):
+                try:
+                    with open(log_path, "r") as f:
+                        lines = f.readlines()
+                        if lines:
+                            last_line = lines[-1].strip()
+                            last_rec = json.loads(last_line)
+                            if "record_hash" in last_rec:
+                                self._last_hashes[building_id] = last_rec["record_hash"]
+                except Exception as e:
+                    logger.warning(f"Could not load last hash from existing log: {e}")
+
         prev_hash = self._last_hashes.get(building_id, "genesis")
         record = AuditRecord(
             building_id=building_id,

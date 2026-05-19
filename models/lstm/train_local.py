@@ -41,33 +41,54 @@ TARGET_COLUMN = "occupancy_next"
 
 
 def prepare_data(
-    df,
+    df: pd.DataFrame,
     lookback: int = 12,
-    train_frac: float = 0.75,
+    train_months: list[int] = None,
+    val_months: list[int] = None,
     scaler: Optional[StandardScaler] = None,
 ) -> tuple:
     """
-    Normalize and window the building DataFrame.
+    Calendar-based train/val split. Scaler is fit ONLY on training months.
+
+    Parameters
+    ----------
+    df : pd.DataFrame with DatetimeIndex
+    lookback : int  — LSTM sequence length
+    train_months : list[int]  — months (1–12) used for training
+    val_months : list[int]    — months used for validation
+    scaler : StandardScaler, optional  — pre-fitted scaler (for inference reuse)
 
     Returns
     -------
-    (train_dataset, val_dataset, scaler, feature_columns)
+    (train_dataset, val_dataset, scaler)
     """
     import pandas as pd
 
-    df = df.copy()
-    # Drop rows with NaN targets
-    df = df.dropna(subset=[TARGET_COLUMN])
+    if train_months is None:
+        train_months = [1, 2, 3, 4, 5, 6]
+    if val_months is None:
+        val_months = [7, 8, 9]
 
-    X = df[FEATURE_COLUMNS].values.astype(np.float32)
-    y = df[TARGET_COLUMN].values.astype(np.float32)
+    df = df.dropna(subset=[TARGET_COLUMN]).copy()
 
-    # Train/val temporal split
-    n_train = int(len(X) * train_frac)
-    X_train, X_val = X[:n_train], X[n_train:]
-    y_train, y_val = y[:n_train], y[n_train:]
+    # Calendar split — strictly temporal, no random sampling
+    train_mask = df.index.month.isin(train_months)
+    val_mask = df.index.month.isin(val_months)
 
-    # Fit scaler on training data only
+    df_train = df[train_mask]
+    df_val = df[val_mask]
+
+    if len(df_train) == 0:
+        raise ValueError(f"No training data for months {train_months}. Check dataset date range.")
+    if len(df_val) == 0:
+        raise ValueError(f"No validation data for months {val_months}. Check dataset date range.")
+
+    X_train = df_train[FEATURE_COLUMNS].values.astype(np.float32)
+    y_train = df_train[TARGET_COLUMN].values.astype(np.float32)
+    X_val = df_val[FEATURE_COLUMNS].values.astype(np.float32)
+    y_val = df_val[TARGET_COLUMN].values.astype(np.float32)
+
+    # Fit scaler on training data ONLY
     if scaler is None:
         scaler = StandardScaler()
         X_train = scaler.fit_transform(X_train)
@@ -78,6 +99,10 @@ def prepare_data(
     train_ds = CampusDataset(X_train, y_train, lookback=lookback)
     val_ds = CampusDataset(X_val, y_val, lookback=lookback)
 
+    logger.info(
+        f"Split: train={len(df_train):,} ({train_months}), "
+        f"val={len(df_val):,} ({val_months})"
+    )
     return train_ds, val_ds, scaler
 
 
@@ -159,6 +184,7 @@ def run_standalone_training(
     config_path: str = "configs/hyperparams.yaml",
     checkpoint_dir: str = "models/lstm/checkpoints",
     seed: int = 42,
+    epochs: int = 50,
 ) -> dict:
     """
     Train OccupancyLSTM for a single building in standalone (non-FL) mode.
@@ -185,7 +211,12 @@ def run_standalone_training(
     logger.info(f"Loaded {len(df):,} records for building {building_id}")
 
     # Prepare datasets
-    train_ds, val_ds, scaler = prepare_data(df, lookback=lstm_cfg["lookback_steps"])
+    train_ds, val_ds, scaler = prepare_data(
+        df,
+        lookback=lstm_cfg["lookback_steps"],
+        train_months=data_cfg.get("train_months", [1,2,3,4,5,6]),
+        val_months=data_cfg.get("val_months", [7,8,9]),
+    )
     train_loader = DataLoader(train_ds, batch_size=lstm_cfg["batch_size"], shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=lstm_cfg["batch_size"] * 2, shuffle=False)
 
@@ -200,7 +231,7 @@ def run_standalone_training(
     logger.info(f"Training OccupancyLSTM on {device} | Params: {model.get_parameter_count():,}")
 
     # Full training loop (for standalone; FL uses local_epochs only)
-    n_full_epochs = 50
+    n_full_epochs = epochs
     best_mae = float("inf")
     history = []
 
@@ -213,14 +244,19 @@ def run_standalone_training(
             best_mae = val_mae
             Path(checkpoint_dir).mkdir(parents=True, exist_ok=True)
             ckpt_path = os.path.join(checkpoint_dir, f"{building_id}_best.pt")
+            import pickle
             torch.save({
                 "epoch": epoch + 1,
                 "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
                 "val_mae": val_mae,
-                "scaler_mean": scaler.mean_,
-                "scaler_scale": scaler.scale_,
+                "building_id": building_id,
+                "feature_columns": FEATURE_COLUMNS,
             }, ckpt_path)
+
+            scaler_path = ckpt_path.replace("_best.pt", "_best_scaler.pkl")
+            with open(scaler_path, "wb") as f:
+                pickle.dump(scaler, f)
 
         if (epoch + 1) % 10 == 0:
             logger.info(f"  Epoch {epoch+1:3d} | train_loss={train_loss:.4f} | val_mae={val_mae:.3f}")
@@ -229,14 +265,44 @@ def run_standalone_training(
     return {"building_id": building_id, "best_mae": best_mae, "history": history}
 
 
+def load_checkpoint(
+    checkpoint_path: str,
+    config: dict,
+    device: Optional[torch.device] = None,
+):
+    """Load model and scaler from a training checkpoint."""
+    import pickle
+    from sklearn.preprocessing import StandardScaler
+
+    if device is None:
+        device = torch.device("cpu")
+
+    ckpt = torch.load(checkpoint_path, map_location=device)
+    model = build_model(config, device=device)
+    model.load_state_dict(ckpt["model_state_dict"])
+    model.eval()
+
+    scaler_path = checkpoint_path.replace("_best.pt", "_best_scaler.pkl")
+    if not os.path.exists(scaler_path):
+        raise FileNotFoundError(
+            f"Scaler not found at {scaler_path}. "
+            "Retrain the model with the updated train_local.py."
+        )
+    with open(scaler_path, "rb") as f:
+        scaler = pickle.load(f)
+
+    return model, scaler, ckpt
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--building-id", default="B01")
     parser.add_argument("--data-path", default="data/raw")
     parser.add_argument("--config", default="configs/hyperparams.yaml")
+    parser.add_argument("--epochs", type=int, default=50)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
-    result = run_standalone_training(args.building_id, args.data_path, args.config)
+    result = run_standalone_training(args.building_id, args.data_path, args.config, epochs=args.epochs)
     print(f"\nResult: {result}")

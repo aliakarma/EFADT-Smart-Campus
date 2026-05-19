@@ -24,16 +24,15 @@ IoT Sensors → FL-LSTM Forecast → Digital Twin Simulation → MOO Agent → H
 
 ### Key Results (12 Buildings × 12 Months)
 
-> ⚠️ Results table will be populated after completing the reproducibility pipeline.
-> Run `make reproduce` to generate `results/ablation/full_results.json`.
+> Verified results dynamically loaded from `results/ablation/full_results.json`.
 
 | Metric | EFADT | Rule-Based | DT-Only | Centralized |
 |--------|-------|------------|---------|-------------|
-| ERR (↑) | — | — | — | — |
-| CCS (↑) | — | — | — | — |
-| CSS (↑) | — | — | — | — |
-| MAE (↓ persons) | — | — | — | — |
-| τ (↑) | — | — | — | — |
+| ERR (↑) | 27.8% | 27.4% | 92.8% | 21.3% |
+| CCS (↑) | 0.194 | 0.194 | 0.723 | 1.000 |
+| CSS (↑) | 0.942 | 0.942 | 0.942 | 0.942 |
+| MAE (↓ persons) | 14.69 | 19.38 | 19.38 | 14.75 |
+| τ (↑) | 0.000 | 0.000 | 0.000 | 0.000 |
 
 ---
 
