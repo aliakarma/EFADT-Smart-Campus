@@ -9,7 +9,8 @@ Approach (from paper):
   - Return φⱼ values per feature for the current decision instance
 
 Limitation acknowledged: SHAP is computed on the proxy, not the LSTM directly.
-For direct LSTM SHAP, use GradientExplainer (see xai/gradient_shap.py).
+For direct LSTM SHAP, use shap.GradientExplainer with the trained OccupancyLSTM.
+Reference: https://shap.readthedocs.io/en/latest/generated/shap.GradientExplainer.html
 
 Decision latency budget: ~23ms for SHAP phase.
 """
