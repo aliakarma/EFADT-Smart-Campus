@@ -226,6 +226,59 @@ def compute_metrics_with_confidence(
     return result
 
 
+def significance_test(
+    ref_values: np.ndarray | list[float],
+    other_values: np.ndarray | list[float],
+) -> dict:
+    """
+    Perform a two-sided Wilcoxon signed-rank test and compute Cohen's d effect size.
+
+    Parameters
+    ----------
+    ref_values : np.ndarray or list of float
+        Metric values from the reference model across runs/seeds.
+    other_values : np.ndarray or list of float
+        Metric values from the comparison baseline across runs/seeds.
+
+    Returns
+    -------
+    dict with Wilcoxon statistic, p-value, Cohen's d, and significance flag.
+    """
+    from scipy.stats import wilcoxon
+
+    ref_arr = np.array(ref_values, dtype=float)
+    other_arr = np.array(other_values, dtype=float)
+
+    if len(ref_arr) != len(other_arr):
+        raise ValueError("Samples must have equal sizes for Wilcoxon signed-rank test.")
+    if len(ref_arr) < 2:
+        return {
+            "wilcoxon_stat": 0.0,
+            "p_value": 1.0,
+            "cohens_d": 0.0,
+            "significant_p05": False,
+        }
+
+    if np.array_equal(ref_arr, other_arr):
+        stat, p = 0.0, 1.0
+    else:
+        try:
+            stat, p = wilcoxon(ref_arr, other_arr)
+        except ValueError:
+            stat, p = 0.0, 1.0
+
+    # Cohen's d
+    pooled_std = np.sqrt((np.var(ref_arr, ddof=1) + np.var(other_arr, ddof=1)) / 2)
+    cohens_d = (np.mean(ref_arr) - np.mean(other_arr)) / pooled_std if pooled_std > 0 else 0.0
+
+    return {
+        "wilcoxon_stat": float(stat),
+        "p_value": float(p),
+        "cohens_d": float(cohens_d),
+        "significant_p05": bool(p < 0.05),
+    }
+
+
 if __name__ == "__main__":
     # Reproduce paper numbers approximately
     rng = np.random.default_rng(42)

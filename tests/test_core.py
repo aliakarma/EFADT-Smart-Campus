@@ -494,3 +494,12 @@ class TestEvaluationMetrics:
         assert isinstance(metrics.ERR, float)
         assert isinstance(metrics.CCS, float)
         assert metrics.n_samples == n
+
+    def test_significance_test(self):
+        from evaluation.metrics import significance_test
+        ref = [17.32, 17.30, 17.34]
+        other = [19.33, 19.30, 19.36]
+        res = significance_test(ref, other)
+        assert "p_value" in res
+        assert "cohens_d" in res
+        assert res["cohens_d"] != 0.0

@@ -12,13 +12,15 @@ Usage:
 """
 
 from __future__ import annotations
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
 import argparse
 import json
 import logging
 import subprocess
-import sys
 import numpy as np
-from pathlib import Path
 from scipy.stats import wilcoxon, norm
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
@@ -81,6 +83,7 @@ def significance_tests(aggregated: dict, reference: str = "EFADT (Full)") -> dic
     Wilcoxon signed-rank test between reference variant and each other variant.
     Reports p-value and Cohen's d effect size.
     """
+    from evaluation.metrics import significance_test
     tests = {}
     if reference not in aggregated:
         return tests
@@ -98,29 +101,14 @@ def significance_tests(aggregated: dict, reference: str = "EFADT (Full)") -> dic
         if len(ref_mae_values) != len(other_values):
             logger.warning(f"Unequal sample sizes for {reference} vs {variant}")
             continue
-        ref_arr = np.array(ref_mae_values)
-        other_arr = np.array(other_values)
-        
-        # If arrays are identical, Wilcoxon signed-rank will raise ValueError.
-        # We handle that case gracefully.
-        if np.array_equal(ref_arr, other_arr):
-            stat, p = 0.0, 1.0
-        else:
-            try:
-                stat, p = wilcoxon(ref_arr, other_arr)
-            except ValueError as e:
-                logger.warning(f"Wilcoxon signed-rank failed for {variant}: {e}")
-                stat, p = 0.0, 1.0
-                
-        # Cohen's d
-        pooled_std = np.sqrt((np.var(ref_arr, ddof=1) + np.var(other_arr, ddof=1)) / 2)
-        cohens_d = (np.mean(ref_arr) - np.mean(other_arr)) / pooled_std if pooled_std > 0 else 0.0
+
+        res = significance_test(ref_mae_values, other_values)
         tests[f"{reference} vs {variant}"] = {
             "metric": "MAE",
-            "wilcoxon_stat": round(float(stat), 4),
-            "p_value": round(float(p), 6),
-            "cohens_d": round(float(cohens_d), 4),
-            "significant_p05": bool(p < 0.05),
+            "wilcoxon_stat": round(res["wilcoxon_stat"], 4),
+            "p_value": round(res["p_value"], 6),
+            "cohens_d": round(res["cohens_d"], 4),
+            "significant_p05": res["significant_p05"],
         }
     return tests
 
