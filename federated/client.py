@@ -165,7 +165,7 @@ class EFADTClient(fl.client.NumPyClient):
         self.set_parameters(parameters)
         mae = evaluate_local(self.model, self.val_loader, self.device)
 
-        metrics: Metrics = {"mae": float(mae), "building_id": hash(self.building_id) % 1000}
+        metrics: Metrics = {"mae": float(mae)}
         logger.debug(f"  {self.building_id} | eval | MAE={mae:.3f}")
 
         return float(mae), self.n_train_examples, metrics
