@@ -41,6 +41,12 @@ jobs:
       - name: Run API tests
         run: pytest tests/test_api.py -v --tb=short --timeout=60
 
+      - name: Run minimal FL simulation
+        run: |
+          python -m data.generation.generate_dataset --n-buildings 2 --n-days 5
+          python -m federated.simulation --n-rounds 3 --n-buildings 2
+        timeout-minutes: 10
+
   docker:
     runs-on: ubuntu-latest
     needs: test

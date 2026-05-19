@@ -29,6 +29,13 @@ help:
 	@echo ""
 
 # ── Setup ────────────────────────────────────────────────────────────────────
+env:
+	python -m venv venv
+	source venv/Scripts/activate && pip install --upgrade pip \
+	  && pip install -r requirements.txt \
+	  && pip install -r requirements-dev.txt
+	@echo "✓ Virtual environment ready — activate with: source venv/Scripts/activate"
+
 setup:
 	$(PIP) install --upgrade pip
 	$(PIP) install -r requirements.txt

@@ -63,12 +63,32 @@ efadt-smart-campus/
 
 ---
 
+## 🛠️ Environment Setup
+
+```bash
+# Recommended: use the make target to create a reproducible environment
+make env
+source venv/Scripts/activate    # Windows Git Bash
+# source venv/bin/activate      # Linux/macOS
+
+# Python version requirement: 3.10.x – 3.11.x
+python --version
+```
+
+### Dependency Notes
+
+- `flwr[simulation]==1.6.0` — validated end-to-end (Phase 2 CI step)
+- `opacus==1.4.0` — required for tight Rényi DP accounting (Phase 10)
+- `streamlit==1.31.0` — governance dashboard
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Install
 
 ```bash
-git clone https://github.com/your-org/efadt-smart-campus.git
+git clone https://github.com/aliakarma/efadt-smart-campus.git
 cd efadt-smart-campus
 pip install -r requirements.txt
 ```

@@ -7,7 +7,7 @@ name = "efadt-smart-campus"
 version = "1.0.0"
 description = "Explainable Federated Agentic Digital Twin for Smart Campus Resource Optimization"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.12"
 license = {text = "MIT"}
 keywords = ["federated-learning", "digital-twin", "explainable-ai", "smart-campus", "energy-optimization"]
 classifiers = [
