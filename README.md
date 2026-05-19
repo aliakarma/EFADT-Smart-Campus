@@ -24,14 +24,16 @@ IoT Sensors → FL-LSTM Forecast → Digital Twin Simulation → MOO Agent → H
 
 ### Key Results (12 Buildings × 12 Months)
 
+> ⚠️ Results table will be populated after completing the reproducibility pipeline.
+> Run `make reproduce` to generate `results/ablation/full_results.json`.
+
 | Metric | EFADT | Rule-Based | DT-Only | Centralized |
 |--------|-------|------------|---------|-------------|
-| **ERR** (↑ better) | **34.7%** | 18.2% | 22.1% | 21.3% |
-| **CCS** (↑ better) | **0.912** | 0.831 | 0.874 | 0.876 |
-| **CSS** (↑ better) | **0.963** | 0.892 | 0.921 | 0.841 |
-| **MAE** (↓ better) | **3.21** persons | 8.47 | 7.63 | 3.47 |
-| **τ** (↑ better) | **0.887** | — | 0.841 | 0.852 |
-| **Privacy** | ε=1.0 ✓ | — | — | ✗ |
+| ERR (↑) | — | — | — | — |
+| CCS (↑) | — | — | — | — |
+| CSS (↑) | — | — | — | — |
+| MAE (↓ persons) | — | — | — | — |
+| τ (↑) | — | — | — | — |
 
 ---
 
@@ -195,14 +197,16 @@ make test-all       # All tests with coverage report
 
 ## 📊 Ablation Study
 
+> ⚠️ Ablation results pending. Run `make reproduce` to populate from verified checkpoints.
+
 | Variant | ERR% | CCS | CSS | MAE | τ |
 |---------|------|-----|-----|-----|---|
-| **EFADT (Full)** | **34.7** | **0.912** | **0.963** | **3.21** | **0.887** |
-| −XAI | 34.7 | 0.912 | 0.963 | 3.21 | — |
-| −DT-WIF | 28.4 | 0.864 | 0.931 | 3.68 | 0.841 |
-| −DP | 34.9 | 0.913 | 0.965 | 3.02 | 0.891 |
-| −MOO (energy-only) | 37.1 | 0.841 | 0.879 | 3.21 | 0.793 |
-| −FL (centralized) | 21.3 | 0.876 | 0.841 | 3.47 | 0.852 |
+| EFADT (Full) | — | — | — | — | — |
+| −XAI | — | — | — | — | — |
+| −DT-WIF | — | — | — | — | — |
+| −DP | — | — | — | — | — |
+| −MOO (energy-only) | — | — | — | — | — |
+| −FL (centralized) | — | — | — | — | — |
 
 ---
 
