@@ -75,7 +75,13 @@ evaluate:
 	  --data-dir data/raw \
 	  --output results/ablation/full_results.json
 
+eval-multi-seed:
+	$(PYTHON) scripts/multi_seed_eval.py \
+	  --seeds 42 0 1 \
+	  --output results/ablation/multi_seed_results.json
+
 reproduce: generate-data train-fl evaluate
+
 	@echo "✓ Full reproduction pipeline complete"
 	@cat results/ablation/full_results.json
 

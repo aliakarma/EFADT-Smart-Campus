@@ -92,6 +92,14 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
+    import random
+    import torch
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+
     if args.quick:
         n_buildings, n_rounds, n_days = 3, 5, 14
     elif args.full:

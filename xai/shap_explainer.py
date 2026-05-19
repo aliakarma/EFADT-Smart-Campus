@@ -103,7 +103,8 @@ class SHAPProxyExplainer:
         # Store background for SHAP baseline computation
         # Use 100 representative samples (or all if fewer)
         n_bg = min(100, len(X_flat))
-        idx = np.random.choice(len(X_flat), size=n_bg, replace=False)
+        rng_bg = np.random.default_rng(42)
+        idx = rng_bg.choice(len(X_flat), size=n_bg, replace=False)
         self._X_background = X_flat[idx]
         self._n_raw_features = X_flat.shape[1]
         self._is_fitted = True

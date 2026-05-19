@@ -72,6 +72,7 @@ def run_simulation(
     n_rounds: Optional[int] = None,
     apply_dp: bool = True,
     device: Optional[torch.device] = None,
+    seed: int = 42,
 ) -> dict:
     """
     Run the EFADT federated simulation.
@@ -87,11 +88,21 @@ def run_simulation(
     apply_dp : bool
         Whether to apply DP (set False for -DP ablation).
     device : torch.device, optional
+    seed : int
 
     Returns
     -------
     dict : Convergence summary metrics.
     """
+    import random
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
     if device is None:
         device = torch.device("cpu")  # Simulation runs on CPU by default
 
@@ -113,6 +124,7 @@ def run_simulation(
         config=config,
         apply_dp=apply_dp,
         device=device,
+        seed=seed,
     )
 
     # Run Flower simulation
@@ -163,6 +175,7 @@ def main():
         building_data=building_data,
         n_rounds=args.n_rounds,
         apply_dp=not args.no_dp,
+        seed=args.seed,
     )
 
     print("\n" + "=" * 60)

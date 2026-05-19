@@ -336,24 +336,44 @@ PAPER_RESULTS = _load_results()
 
 def print_ablation_table() -> None:
     """Print the ablation results as a formatted table."""
-    print("\n" + "=" * 80)
-    print(f"{'Variant':<25} {'ERR%':>6} {'CCS':>6} {'CSS':>6} {'MAE':>6} {'τ':>6}")
-    print("-" * 80)
-    for name, metrics in PAPER_RESULTS.items():
-        row_vals = []
-        for key in ["ERR", "CCS", "CSS", "MAE", "tau"]:
-            val = metrics.get(key)
-            if val is None:
-                row_vals.append("  —  ")
-            elif key == "ERR":
-                row_vals.append(f"{val:>6.1f}")
-            elif key == "MAE":
-                row_vals.append(f"{val:>6.2f}")
-            else:
-                row_vals.append(f"{val:>6.3f}")
-        print(f"{name:<25} {' '.join(row_vals)}")
-    print("=" * 80)
+    import os, json
+    ms_path = os.path.join(os.path.dirname(__file__), "..", "results", "ablation", "multi_seed_results.json")
+    if os.path.exists(ms_path):
+        with open(ms_path) as f:
+            data = json.load(f)
+        aggregated = data["aggregated"]
+        print(f"\n{'=' * 100}")
+        print(f"{'Variant':<28} {'ERR%':>14} {'CCS':>12} {'CSS':>12} {'MAE':>14} {'n_seeds':>8}")
+        print("-" * 100)
+        for variant, metrics in aggregated.items():
+            def fmt(m):
+                v = m.get("mean"); s = m.get("std")
+                if v is None: return "        —"
+                return f"{v:.3f}+/-{s:.3f}"
+            n = metrics["MAE"].get("n", "?")
+            print(f"{variant:<28} {fmt(metrics['ERR']):>14} {fmt(metrics['CCS']):>12} "
+                  f"{fmt(metrics['CSS']):>12} {fmt(metrics['MAE']):>14} {n:>8}")
+        print("=" * 100)
+    else:
+        print("\n" + "=" * 80)
+        print(f"{'Variant':<25} {'ERR%':>6} {'CCS':>6} {'CSS':>6} {'MAE':>6} {'τ':>6}")
+        print("-" * 80)
+        for name, metrics in PAPER_RESULTS.items():
+            row_vals = []
+            for key in ["ERR", "CCS", "CSS", "MAE", "tau"]:
+                val = metrics.get(key)
+                if val is None:
+                    row_vals.append("  —  ")
+                elif key == "ERR":
+                    row_vals.append(f"{val:>6.1f}")
+                elif key == "MAE":
+                    row_vals.append(f"{val:>6.2f}")
+                else:
+                    row_vals.append(f"{val:>6.3f}")
+            print(f"{name:<25} {' '.join(row_vals)}")
+        print("=" * 80)
 
 
 if __name__ == "__main__":
     print_ablation_table()
+

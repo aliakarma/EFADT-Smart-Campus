@@ -61,12 +61,15 @@ class EFADTClient(fl.client.NumPyClient):
         config: dict,
         device: Optional[torch.device] = None,
         apply_dp: bool = True,
+        seed: int = 42,
     ) -> None:
         super().__init__()
         self.building_id = building_id
         self.config = config
         self.apply_dp = apply_dp
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self._base_seed = seed
+        self._round_counter = 0
 
         lstm_cfg = config["lstm"]
         dp_cfg = config["dp"]
@@ -137,9 +140,10 @@ class EFADTClient(fl.client.NumPyClient):
         # Step 3: Compute local model params after training
         local_params = [val.cpu().numpy() for _, val in self.model.state_dict().items()]
 
+        self._round_counter += 1
         # Step 4: Apply DP (optional — disabled for -DP ablation)
         if self.apply_dp:
-            rng = np.random.default_rng()
+            rng = np.random.default_rng(self._base_seed + self._round_counter * 1000)
             noised_updates, dp_info = privatize_model_update(
                 local_params, global_params,
                 epsilon=self.epsilon, delta=self.delta,
@@ -182,6 +186,7 @@ def create_client_fn(
     config: dict,
     apply_dp: bool = True,
     device: Optional[torch.device] = None,
+    seed: int = 42,
 ):
     """
     Factory for Flower simulation: returns a function that creates clients by ID.
@@ -195,6 +200,7 @@ def create_client_fn(
     apply_dp : bool
         Whether to apply DP.
     device : torch.device, optional
+    seed : int
 
     Returns
     -------
@@ -209,6 +215,7 @@ def create_client_fn(
             config=config,
             device=device,
             apply_dp=apply_dp,
+            seed=seed + int(cid),
         )
 
     return client_fn
