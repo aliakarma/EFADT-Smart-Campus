@@ -206,11 +206,11 @@ Key parameters tracked include `apply_dp`, `epsilon`, `sigma`, `local_epochs`, a
 
 If you use EFADT in your research, please cite:
 ```bibtex
-@article{efadt2024,
+@article{efadt2026,
   title   = {EFADT: Explainable Federated Agentic Digital Twin for Smart Campus Resource Optimization},
-  author  = {Author et al.},
-  journal = {IEEE Transactions on Smart Grid},
-  year    = {2024}
+  author  = {},
+  journal = {},
+  year    = {2026}
 }
 ```
 
