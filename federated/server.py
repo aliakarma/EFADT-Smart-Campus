@@ -14,6 +14,7 @@ Responsibilities:
 from __future__ import annotations
 
 import logging
+import mlflow
 import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
@@ -87,6 +88,13 @@ class EFADTFedAvgStrategy(FedAvg):
         if aggregated_parameters is not None:
             self._save_checkpoint(server_round, aggregated_parameters)
 
+        # Log to MLflow
+        try:
+            if mlflow.active_run():
+                mlflow.log_metric("avg_train_loss", avg_train_loss, step=server_round)
+        except Exception as e:
+            logger.warning(f"Failed to log avg_train_loss to MLflow: {e}")
+
         return aggregated_parameters, {"avg_train_loss": avg_train_loss}
 
     def aggregate_evaluate(
@@ -100,10 +108,10 @@ class EFADTFedAvgStrategy(FedAvg):
             return None, {}
 
         # Weighted MAE aggregation
-        total_examples = sum(num_examples for num_examples, _ in results)
+        total_examples = sum(r.num_examples for _, r in results)
         weighted_mae = sum(
-            num_examples * r.metrics.get("mae", 0.0)
-            for num_examples, r in results
+            r.num_examples * r.metrics.get("mae", 0.0)
+            for _, r in results
         ) / max(total_examples, 1)
 
         self.round_metrics.append({
@@ -111,6 +119,13 @@ class EFADTFedAvgStrategy(FedAvg):
             "global_mae": weighted_mae,
             "n_clients": len(results),
         })
+
+        # Log to MLflow in real-time
+        try:
+            if mlflow.active_run():
+                mlflow.log_metric("global_mae", weighted_mae, step=server_round)
+        except Exception as e:
+            logger.warning(f"Failed to log global_mae to MLflow in real-time: {e}")
 
         # Check convergence
         if (

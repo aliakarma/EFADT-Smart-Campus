@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 
 import flwr as fl
+import mlflow
 import numpy as np
 import pandas as pd
 import torch
@@ -112,36 +113,73 @@ def run_simulation(
 
     logger.info(f"Starting EFADT FL simulation | Rounds={n_rounds} | Buildings={n_clients} | DP={apply_dp}")
 
-    # Build strategy
-    strategy = build_server_strategy(config)
+    tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "file:./mlruns")
+    experiment_name = os.getenv("MLFLOW_EXPERIMENT_NAME", "efadt-campus")
+    mlflow.set_tracking_uri(tracking_uri)
+    mlflow.set_experiment(experiment_name)
 
-    # Override evaluate_metrics_aggregation_fn for weighted MAE
-    strategy.evaluate_metrics_aggregation_fn = weighted_average
+    with mlflow.start_run(run_name=f"fl_seed{seed}_rounds{n_rounds}_dp{apply_dp}"):
+        # Log hyperparameters
+        mlflow.log_params({
+            "seed": seed,
+            "n_rounds": n_rounds,
+            "n_buildings": n_clients,
+            "apply_dp": apply_dp,
+            "epsilon": config["dp"]["epsilon"],
+            "sigma": config["dp"]["sigma"],
+            "hidden_size": config["lstm"]["hidden_size"],
+            "local_epochs": config["lstm"]["local_epochs"],
+            "lambda_e": config["agent"]["lambda_e"],
+            "lambda_c": config["agent"]["lambda_c"],
+            "lambda_d": config["agent"]["lambda_d"],
+        })
 
-    # Build client factory
-    client_fn = create_client_fn(
-        building_data=building_data,
-        config=config,
-        apply_dp=apply_dp,
-        device=device,
-        seed=seed,
-    )
+        # Build strategy
+        strategy = build_server_strategy(config)
 
-    # Run Flower simulation
-    history = fl.simulation.start_simulation(
-        client_fn=client_fn,
-        num_clients=n_clients,
-        config=fl.server.ServerConfig(num_rounds=n_rounds),
-        strategy=strategy,
-        client_resources={"num_cpus": 1, "num_gpus": 0.0},
-    )
+        # Override evaluate_metrics_aggregation_fn for weighted MAE
+        strategy.evaluate_metrics_aggregation_fn = weighted_average
 
-    # Extract convergence summary
-    summary = strategy.get_convergence_summary()
-    summary["history"] = history
-    summary["n_rounds"] = n_rounds
-    summary["n_buildings"] = n_clients
-    summary["apply_dp"] = apply_dp
+        # Build client factory
+        client_fn = create_client_fn(
+            building_data=building_data,
+            config=config,
+            apply_dp=apply_dp,
+            device=device,
+            seed=seed,
+        )
+
+        # Run Flower simulation
+        history = fl.simulation.start_simulation(
+            client_fn=client_fn,
+            num_clients=n_clients,
+            config=fl.server.ServerConfig(num_rounds=n_rounds),
+            strategy=strategy,
+            client_resources={"num_cpus": 1, "num_gpus": 0.0},
+        )
+
+        # Extract convergence summary
+        summary = strategy.get_convergence_summary()
+        summary["history"] = history
+        summary["n_rounds"] = n_rounds
+        summary["n_buildings"] = n_clients
+        summary["apply_dp"] = apply_dp
+
+        # Log per-round MAE from strategy
+        for round_info in strategy.round_metrics:
+            mlflow.log_metric("global_mae", round_info["global_mae"], step=round_info["round"])
+
+        if summary:
+            mlflow.log_metrics({
+                "convergence_round": summary.get("convergence_round") or -1,
+                "final_mae": summary.get("final_mae", -1),
+                "best_mae": summary.get("best_mae", -1),
+            })
+
+        # Log checkpoint directory as artifact
+        checkpoint_dir = "models/lstm/checkpoints"
+        if os.path.exists(checkpoint_dir):
+            mlflow.log_artifacts(checkpoint_dir, artifact_path="checkpoints")
 
     logger.info(f"Simulation complete. Summary: {summary}")
     return summary

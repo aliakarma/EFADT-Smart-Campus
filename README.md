@@ -214,6 +214,24 @@ make test-all       # All tests with coverage report
 
 ---
 
+## 📈 Experiment Tracking
+
+All training runs and evaluation results are logged to MLflow:
+
+```bash
+# Start local MLflow server
+make docker-up       # starts MLflow at http://localhost:5000
+
+# Or run locally without Docker
+mlflow ui --host 127.0.0.1 --port 5000
+
+# Tracked parameters: apply_dp, epsilon, hidden_size, lambdas, local_epochs, seed, sigma, etc.
+# Tracked metrics: avg_train_loss, global_mae, best_mae, final_mae, and evaluation metrics
+# Tracked artifacts: checkpoints, evaluation summaries, and plots
+```
+
+---
+
 ## 📊 Ablation Study
 
 > Verified results dynamically loaded from `results/ablation/full_results.json`.
