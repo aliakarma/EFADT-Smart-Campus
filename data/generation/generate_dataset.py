@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import argparse
 import logging
+import hashlib
+import json
 import os
 import time
 from pathlib import Path
@@ -197,6 +199,34 @@ def generate_full_dataset(
     elapsed = time.time() - start
     logger.info(f"Total records: {len(combined):,} | Elapsed: {elapsed:.1f}s")
 
+    def _hash_parquet(path: str) -> str:
+        """SHA-256 of a Parquet file for reproducibility verification."""
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+        return h.hexdigest()
+
+    # Write dataset manifest
+    dataset_manifest = {
+        "seed": seed,
+        "n_buildings": n_buildings,
+        "n_days": n_days,
+        "start_date": start_date,
+        "files": {}
+    }
+    for bid in building_ids:
+        out_path = os.path.join(output_dir, f"{bid}.parquet")
+        dataset_manifest["files"][bid] = {
+            "path": out_path,
+            "sha256": _hash_parquet(out_path),
+        }
+
+    manifest_path = os.path.join(output_dir, "dataset_manifest.json")
+    with open(manifest_path, "w") as f:
+        json.dump(dataset_manifest, f, indent=2)
+    logger.info(f"Dataset manifest written to {manifest_path}")
+
     # Create scenario splits
     _create_scenario_splits(combined, global_cfg)
 
@@ -211,8 +241,7 @@ def _create_scenario_splits(df: pd.DataFrame, cfg: dict) -> None:
 
     # Peak: exam months only
     exam_months = [4, 5, 11, 12]
-    peak = df[df.index.get_level_values(0).month.isin(exam_months) if isinstance(df.index, pd.MultiIndex)
-              else df.index.month.isin(exam_months)]
+    peak = df[df.index.month.isin(exam_months)]
     peak.to_parquet(os.path.join(out_dir, "peak.parquet"), compression="snappy")
 
     # Failure: inject 20% sensor faults

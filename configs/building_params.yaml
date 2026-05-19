@@ -2,7 +2,8 @@
 # EFADT Per-Building Thermal Parameters
 # RC Model: dT_in/dt = alpha*(T_out - T_in) + beta*Q_HVAC + gamma*kappa*occ
 # ============================================================
-# Parameters fitted via OLS regression on synthetic sensor data.
+# Parameters chosen as physically-motivated design constants representing
+# realistic campus buildings under a Medina-type climate.
 # Units: alpha [1/s], beta [°C/kW/s], gamma [°C/(kW/person)/s]
 
 buildings:

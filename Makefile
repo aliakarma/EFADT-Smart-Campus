@@ -1,7 +1,7 @@
 # ============================================================
 # EFADT — Makefile
 # ============================================================
-.PHONY: help setup generate-data train-fl test smoke lint api dashboard clean zip
+.PHONY: help setup generate-data train-fl test smoke lint api dashboard clean zip validate-data
 
 PYTHON   := python
 PIP      := pip
@@ -88,6 +88,11 @@ ablations:
 	$(PYTHON) scripts/run_ablations.py \
 	  --seed $(SEED) \
 	  --checkpoint-dir models/lstm/checkpoints
+
+validate-data:
+	$(PYTHON) scripts/validate_dataset.py \
+	  --data-dir data/raw \
+	  --config configs/hyperparams.yaml
 
 reproduce: generate-data train-fl evaluate
 

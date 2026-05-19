@@ -283,6 +283,28 @@ Two sequential runs with the same seed produce bit-identical training curves and
 
 ---
 
+## 📦 Dataset
+
+EFADT uses a fully synthetic dataset generated from physically-motivated models.
+After generation, the dataset is checksummed for verification:
+
+```bash
+python scripts/validate_dataset.py --data-dir data/raw --config configs/hyperparams.yaml
+```
+
+Alternatively, you can run the verification using the Makefile target:
+```bash
+make validate-data
+# Verifies SHA-256 hashes against data/raw/dataset_manifest.json
+# Reports per-building statistics and split sizes
+```
+
+**RC thermal parameters** in `configs/building_params.yaml` are design constants
+chosen to represent realistic Medina-climate campus buildings. They are not
+fitted to real sensor data.
+
+---
+
 ## 🔒 Privacy Guarantee
 
 EFADT applies (ε=1.0, δ=1e-5)-DP **per FL round** using the Gaussian mechanism:
