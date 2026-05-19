@@ -55,5 +55,7 @@ Thumbs.db
 # Distribution
 *.zip
 *.tar.gz
-REMEDIATION_PLAN.md
-PROJECT_REPORT.md
+
+# Results (large experiment outputs — not committed)
+results/seeds/
+results/checkpoints/
