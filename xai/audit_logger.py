@@ -227,18 +227,29 @@ class JSONLAuditLogger:
         Verify hash chain integrity for a building's audit log.
         Returns True if chain is unbroken, False if tampered.
         """
-        records = self.query(building_id=building_id, date_str=date_str)
-        if not records:
-            return True
+        # Find all matching files and verify them independently
+        for log_file in sorted(Path(self.log_dir).glob("*.jsonl")):
+            if building_id and not log_file.name.startswith(building_id):
+                continue
+            if date_str and date_str not in log_file.name:
+                continue
 
-        for i, rec in enumerate(records):
-            expected_prev = "genesis" if i == 0 else records[i - 1]["record_hash"]
-            if rec.get("prev_hash") != expected_prev:
-                logger.error(
-                    f"Hash chain BROKEN at record {i} for {building_id}! "
-                    f"Expected prev={expected_prev[:16]}..., got {rec.get('prev_hash', 'MISSING')[:16]}..."
-                )
-                return False
+            records = []
+            with open(log_file) as f:
+                for line in f:
+                    try:
+                        records.append(json.loads(line.strip()))
+                    except json.JSONDecodeError:
+                        continue
+
+            for i, rec in enumerate(records):
+                expected_prev = "genesis" if i == 0 else records[i - 1]["record_hash"]
+                if rec.get("prev_hash") != expected_prev:
+                    logger.error(
+                        f"Hash chain BROKEN at record {i} in file {log_file.name} for {building_id}! "
+                        f"Expected prev={expected_prev[:16]}..., got {rec.get('prev_hash', 'MISSING')[:16]}..."
+                    )
+                    return False
         return True
 
 

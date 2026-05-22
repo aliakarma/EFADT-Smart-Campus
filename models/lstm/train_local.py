@@ -21,13 +21,14 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
-from sklearn.preprocessing import StandardScaler
 import yaml
+from sklearn.preprocessing import StandardScaler
+from torch.utils.data import DataLoader
 
-from models.lstm.architecture import OccupancyLSTM, CampusDataset, build_model
+from models.lstm.architecture import CampusDataset, OccupancyLSTM, build_model
 
 logger = logging.getLogger(__name__)
 
@@ -62,8 +63,6 @@ def prepare_data(
     -------
     (train_dataset, val_dataset, scaler)
     """
-    import pandas as pd
-
     if train_months is None:
         train_months = [1, 2, 3, 4, 5, 6]
     if val_months is None:
@@ -86,17 +85,18 @@ def prepare_data(
             f"Configured months {train_months}/{val_months} not present in dataset (available: {unique_months}). "
             f"Falling back to temporal split: train={len(df_train):,}, val={len(df_val):,}"
         )
+        if len(df_train) == 0 or len(df_val) == 0:
+            raise ValueError("Temporal split produced empty train or val set.")
     else:
         # Calendar split — strictly temporal, no random sampling
         train_mask = df.index.month.isin(train_months)
         val_mask = df.index.month.isin(val_months)
         df_train = df[train_mask]
         df_val = df[val_mask]
-
-    if len(df_train) == 0:
-        raise ValueError(f"No training data for months {train_months}. Check dataset date range.")
-    if len(df_val) == 0:
-        raise ValueError(f"No validation data for months {val_months}. Check dataset date range.")
+        if len(df_train) == 0:
+            raise ValueError(f"No training data for months {train_months}. Check dataset date range.")
+        if len(df_val) == 0:
+            raise ValueError(f"No validation data for months {val_months}. Check dataset date range.")
 
     X_train = df_train[FEATURE_COLUMNS].values.astype(np.float32)
     y_train = df_train[TARGET_COLUMN].values.astype(np.float32)
@@ -207,12 +207,7 @@ def run_standalone_training(
     seed: int = 42,
     epochs: int = 50,
 ) -> dict:
-    """
-    Train OccupancyLSTM for a single building in standalone (non-FL) mode.
-    Returns training summary dict.
-    """
-    import pandas as pd
-
+    """Train OccupancyLSTM for a single building in standalone (non-FL) mode."""
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -293,6 +288,7 @@ def load_checkpoint(
 ):
     """Load model and scaler from a training checkpoint."""
     import pickle
+
     from sklearn.preprocessing import StandardScaler
 
     if device is None:

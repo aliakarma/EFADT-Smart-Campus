@@ -1,56 +1,16 @@
 {
   "seed": 42,
-  "n_buildings": 12,
-  "n_days": 365,
+  "n_buildings": 2,
+  "n_days": 7,
   "start_date": "2024-01-01",
   "files": {
     "B01": {
       "path": "data/raw\\B01.parquet",
-      "sha256": "b838790f596c58fa32ba7b12c3b20c2896a5e14d5cac062b5381f00cc0ed05d7"
+      "sha256": "2c75e7f72dad79fe22b8a01a51b2a2aeee5c80d17a18eeaedb5091b4547eefe5"
     },
     "B02": {
       "path": "data/raw\\B02.parquet",
-      "sha256": "2052be25bcda653c10e21df594deac4d2eef8ef1e5bac9e18d6242fd3c8dea70"
-    },
-    "B03": {
-      "path": "data/raw\\B03.parquet",
-      "sha256": "39abce88edfed7fe22eab23e80ab946ecab83f94c999ba265c162db93f469a08"
-    },
-    "B04": {
-      "path": "data/raw\\B04.parquet",
-      "sha256": "aa421c85ecbf00da92a12b3e44c60ec0f2b79675a97ec8ae5dad0e0436148d59"
-    },
-    "B05": {
-      "path": "data/raw\\B05.parquet",
-      "sha256": "ff4e16bee587dce48f5e06ba20d12f646fb6c1cd6d58339919dd7a93bf82c293"
-    },
-    "B06": {
-      "path": "data/raw\\B06.parquet",
-      "sha256": "aa56954ed241c051f38213f8cf5257179220e7410f35f41e9a8e39aa4d21b7bc"
-    },
-    "B07": {
-      "path": "data/raw\\B07.parquet",
-      "sha256": "6b26c6b5ee445f10e75b173b2f0f99a49a3e30670ff1905614e4a1ad9f3a8f66"
-    },
-    "B08": {
-      "path": "data/raw\\B08.parquet",
-      "sha256": "6185b0d4f4b94713dce73cc2af6e60b98532c69404281c5c2ced027d453221c3"
-    },
-    "B09": {
-      "path": "data/raw\\B09.parquet",
-      "sha256": "a6aa9c0f3e7459209474509617d6f1872beead330d613662dce35744f8097158"
-    },
-    "B10": {
-      "path": "data/raw\\B10.parquet",
-      "sha256": "8f2dd2a51925987d8ffd5341adafad3d4623a5df587896abccd9f8fdd168ed0e"
-    },
-    "B11": {
-      "path": "data/raw\\B11.parquet",
-      "sha256": "346784e4cdc8ce4e0d336d95ae771fe328ce4239af1d4e45cdf7b3486d519dd4"
-    },
-    "B12": {
-      "path": "data/raw\\B12.parquet",
-      "sha256": "444bda32d71c9d1c5aa3a52dbb64320b301fb3987a9d7a92e049c5764768ff3c"
+      "sha256": "036ccfcc287193792d58d5ff60d9c7f1b672271b3e2e79239720bc0869f56103"
     }
   }
 }
