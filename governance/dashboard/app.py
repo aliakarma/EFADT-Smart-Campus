@@ -286,8 +286,9 @@ try:
         f"MAE={_full.get('MAE', 'N/A'):.2f} | "
         f"τ={_full.get('tau', 'N/A'):.3f}"
     ) if _full else "Run `make evaluate` to generate metrics."
-except (FileNotFoundError, KeyError, TypeError):
+except (FileNotFoundError, KeyError, TypeError, AttributeError):
     _footer_metrics = "Run `make evaluate` to generate metrics."
+
 
 st.caption(
     "EFADT — Explainable Federated Agentic Digital Twin | "

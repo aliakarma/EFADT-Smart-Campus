@@ -227,6 +227,7 @@ def evaluate_single_variant(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint-dir", default="models/lstm/checkpoints")
+    parser.add_argument("--checkpoint-dir-no-dp", default=None)
     parser.add_argument("--data-dir", default="data/raw")
     parser.add_argument("--test-months", nargs="+", type=int, default=None)
     parser.add_argument("--config", default="configs/hyperparams.yaml")
@@ -235,6 +236,7 @@ def main():
     parser.add_argument("--n-buildings", type=int, default=None)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--centralized-epochs", type=int, default=50)
+    parser.add_argument("--n-rounds", type=int, default=None)
     parser.add_argument("--variant", default=None, choices=[
         "EFADT (Full)", "EFADT", "full", "-XAI", "no_xai", "-DT-WIF", "dt_only",
         "-DP", "no_dp", "-MOO (energy-only)", "energy_only", "-FL (centralized)",
@@ -370,15 +372,34 @@ def main():
     # 4. -DP
     if target_variant is None or target_variant == "-DP":
         logger.info("Evaluating -DP...")
-        # Reuses EFADT (Full) as a fallback if evaluated on a different folder
-        if "EFADT (Full)" in results:
-            results["-DP"] = results["EFADT (Full)"].copy()
-        else:
-            # If we explicitly run only -DP, evaluate single variant
-            results["-DP"] = evaluate_single_variant(
-                "EFADT (Full)", building_data, args.checkpoint_dir,
-                config, building_cfg, test_months, device,
-            ).to_dict()
+        ckpt_no_dp = args.checkpoint_dir_no_dp
+        if not ckpt_no_dp:
+            possible_dirs = [
+                f"models/lstm/checkpoints_no_dp_seed{args.seed}",
+                f"models/checkpoints_no_dp_seed{args.seed}"
+            ]
+            for p_dir in possible_dirs:
+                if os.path.exists(p_dir) and os.path.exists(os.path.join(p_dir, f"{building_ids[0]}_best.pt")):
+                    ckpt_no_dp = p_dir
+                    break
+        
+        if not ckpt_no_dp or not os.path.exists(ckpt_no_dp):
+            logger.info("No-DP checkpoints not found. Triggering no-DP retraining...")
+            ckpt_no_dp = f"models/lstm/checkpoints_no_dp_seed{args.seed}"
+            from scripts.run_ablations import retrain_no_dp
+            retrain_no_dp(
+                n_buildings=n_buildings,
+                seed=args.seed,
+                config_path=args.config,
+                data_dir=args.data_dir,
+                building_config=args.building_config,
+                n_rounds=args.n_rounds or config["federated"].get("num_rounds", 100)
+            )
+            
+        results["-DP"] = evaluate_single_variant(
+            "-DP", building_data, ckpt_no_dp,
+            config, building_cfg, test_months, device,
+        ).to_dict()
 
     # 5. -MOO (energy-only)
     if target_variant is None or target_variant == "-MOO (energy-only)":

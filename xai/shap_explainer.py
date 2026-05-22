@@ -94,11 +94,23 @@ class SHAPProxyExplainer:
         else:
             X_flat = X_train
 
-        logger.info(f"Fitting proxy GBM on {len(X_flat)} samples, {X_flat.shape[1]} features")
+        max_samples = 5000
+        if len(X_flat) > max_samples:
+            logger.info(f"Subsampling {len(X_flat)} samples to {max_samples} for faster proxy fitting.")
+            rng_sub = np.random.default_rng(42)
+            idx_sub = rng_sub.choice(len(X_flat), size=max_samples, replace=False)
+            X_fit = X_flat[idx_sub]
+            lstm_preds_fit = lstm_predictions[idx_sub]
+        else:
+            X_fit = X_flat
+            lstm_preds_fit = lstm_predictions
+
+        logger.info(f"Fitting proxy GBM on {len(X_fit)} samples, {X_fit.shape[1]} features")
         t0 = time.time()
 
-        self.proxy.fit(X_flat, lstm_predictions)
+        self.proxy.fit(X_fit, lstm_preds_fit)
         self.explainer = shap.TreeExplainer(self.proxy)
+
 
         # Store background for SHAP baseline computation
         # Use 100 representative samples (or all if fewer)

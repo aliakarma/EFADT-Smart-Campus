@@ -161,6 +161,7 @@ def run_simulation(
             config=fl.server.ServerConfig(num_rounds=n_rounds),
             strategy=strategy,
             client_resources={"num_cpus": 1, "num_gpus": 0.0},
+            ray_init_args={"num_cpus": 2},  # Limit concurrency to prevent Windows memory exhaustion
         )
 
         # Extract convergence summary
@@ -228,7 +229,26 @@ def run_simulation(
                     "building_id": bid,
                 }, pt_path)
                 logger.info(f"Saved FL model checkpoint for {bid} to {pt_path}")
+
+                # Fit SHAP explainer for this client building
+                from models.lstm.train_local import prepare_data, fit_and_save_shap_explainer
+                data_cfg = config.get("data", {})
+                train_ds, _, _ = prepare_data(
+                    df=building_data[bid],
+                    lookback=config["lstm"]["lookback_steps"],
+                    train_months=data_cfg.get("train_months", [1, 2, 3, 4, 5, 6]),
+                    val_months=data_cfg.get("val_months", [7, 8, 9]),
+                )
+                model_client = build_model(config, device=device)
+                model_client.load_state_dict(state_dict)
+                shap_path = os.path.join(checkpoint_dir, f"{bid}_best_shap.pkl")
+                logger.info(f"Fitting SHAP Proxy Explainer for FL building {bid}...")
+                try:
+                    fit_and_save_shap_explainer(model_client, train_ds, device, shap_path)
+                except Exception as e:
+                    logger.error(f"Failed to fit SHAP explainer for {bid}: {e}", exc_info=True)
         else:
+
             logger.warning(f"Could not find best round global pickle at {best_pkl_path} to unpack.")
 
         # Log checkpoint directory as artifact

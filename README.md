@@ -95,13 +95,13 @@ Below is the multi-seed evaluation results table compiled across seeds `[42, 0, 
 <!-- RESULTS_TABLE_START -->
 | Variant | ERR% | CCS | CSS | MAE (persons) |
 |---------|------|-----|-----|---------------|
-| EFADT (Full) | 23.287±0.000 | 0.167±0.000 | 0.898±0.000 | 17.320±0.000 |
-| -XAI | 23.287±0.000 | 0.167±0.000 | 0.898±0.000 | 17.320±0.000 |
-| -DT-WIF | 89.898±0.000 | 0.683±0.000 | 0.898±0.000 | 19.333±0.000 |
-| -DP | 23.287±0.000 | 0.167±0.000 | 0.898±0.000 | 17.320±0.000 |
-| -MOO (energy-only) | 23.287±0.000 | 0.167±0.000 | 0.898±0.000 | 17.320±0.000 |
-| -FL (centralized) | 21.300±0.000 | 1.000±0.000 | 0.898±0.000 | 16.640±0.059 |
-| Rule-Based | 24.834±0.000 | 0.169±0.000 | 0.898±0.000 | 19.333±0.000 |
+| EFADT (Full) | 44.084±0.000 | 0.427±0.000 | 0.999±0.000 | 15.952±1.533 |
+| -XAI | 44.084±0.000 | 0.427±0.000 | 0.999±0.000 | 15.952±1.533 |
+| -DT-WIF | 96.300±0.000 | 0.969±0.000 | 0.999±0.000 | 7.414±0.000 |
+| -DP | 43.020±0.183 | 0.427±0.000 | 0.999±0.000 | 17.132±1.383 |
+| -MOO (energy-only) | 44.084±0.000 | 0.427±0.000 | 0.999±0.000 | 15.952±1.533 |
+| -FL (centralized) | 21.300±0.000 | 1.000±0.000 | 0.999±0.000 | 17.979±1.933 |
+| Rule-Based | 30.368±0.000 | 0.381±0.000 | 0.999±0.000 | 7.413±0.000 |
 <!-- RESULTS_TABLE_END -->
 
 > Note: `ERR%` is Energy Reduction Ratio, `CCS` is Comfort Compliance Score, `CSS` is Crowd Safety Score, and `MAE` is forecasting Mean Absolute Error. Run `python scripts/update_readme_results.py` to auto-populate this table from the results JSON.

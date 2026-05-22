@@ -278,8 +278,49 @@ def run_standalone_training(
             logger.info(f"  Epoch {epoch+1:3d} | train_loss={train_loss:.4f} | val_mae={val_mae:.3f}")
 
     logger.info(f"Best MAE for {building_id}: {best_mae:.3f} persons")
+
+    # Fit SHAP Explainer on best model's predictions on training set
+    ckpt_path = os.path.join(checkpoint_dir, f"{building_id}_best.pt")
+    if os.path.exists(ckpt_path):
+        checkpoint = torch.load(ckpt_path, map_location=device)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        shap_path = os.path.join(checkpoint_dir, f"{building_id}_best_shap.pkl")
+        logger.info(f"Fitting SHAP Proxy Explainer for building {building_id}...")
+        try:
+            fit_and_save_shap_explainer(model, train_ds, device, shap_path)
+        except Exception as e:
+            logger.error(f"Failed to fit SHAP explainer for {building_id}: {e}", exc_info=True)
+
     return {"building_id": building_id, "best_mae": best_mae, "history": history}
 
+
+def fit_and_save_shap_explainer(
+    model,
+    train_ds,
+    device,
+    save_path: str,
+) -> None:
+    """Collect model predictions on training dataset and fit/save SHAPProxyExplainer."""
+    from xai.shap_explainer import SHAPProxyExplainer
+
+    loader = DataLoader(train_ds, batch_size=2048, shuffle=False)
+    model.eval()
+    all_x = []
+    all_preds = []
+
+    with torch.no_grad():
+        for x_batch, _ in loader:
+            x_batch = x_batch.to(device)
+            preds, _ = model(x_batch)
+            all_x.append(x_batch.cpu().numpy())
+            all_preds.append(preds.squeeze(-1).cpu().numpy())
+
+    x_train_np = np.concatenate(all_x, axis=0)
+    preds_train_np = np.concatenate(all_preds, axis=0)
+
+    explainer = SHAPProxyExplainer()
+    explainer.fit(x_train_np, preds_train_np)
+    explainer.save(save_path)
 
 def load_checkpoint(
     checkpoint_path: str,

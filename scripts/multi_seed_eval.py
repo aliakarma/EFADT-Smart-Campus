@@ -27,22 +27,62 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(
 logger = logging.getLogger(__name__)
 
 
-def run_one_seed(seed: int, extra_args: list) -> dict:
-    """Run evaluate_checkpoint.py for one seed and return parsed JSON."""
-    out_path = f"results/seeds/results_seed{seed}.json"
+def run_one_seed(seed: int, data_dir: str, n_buildings: int | None, n_rounds: int | None, extra_args: list) -> dict:
+    """Train FL models (with and without DP) and run evaluate_checkpoint.py for one seed."""
     import os
-    if os.path.exists(out_path):
-        logger.info(f"Seed {seed} results already exist at {out_path}; loading directly.")
-        with open(out_path) as f:
-            return json.load(f)
+    import subprocess
+    
+    ckpt_dir = f"models/lstm/checkpoints_seed{seed}"
+    ckpt_dir_no_dp = f"models/lstm/checkpoints_no_dp_seed{seed}"
+    out_path = f"results/seeds/results_seed{seed}.json"
 
+    # 1. Train DP FL model
+    logger.info(f"--- Retraining DP FL Model for Seed {seed} ---")
+    sim_cmd = [
+        sys.executable, "-m", "federated.simulation",
+        "--seed", str(seed),
+        "--data-dir", data_dir,
+    ]
+    if n_rounds is not None:
+        sim_cmd += ["--n-rounds", str(n_rounds)]
+    if n_buildings is not None:
+        sim_cmd += ["--n-buildings", str(n_buildings)]
+        
+    env = {**os.environ, "CHECKPOINT_DIR": ckpt_dir}
+    subprocess.run(sim_cmd, check=True, env=env)
+
+    # 2. Train no-DP FL model
+    logger.info(f"--- Retraining no-DP FL Model for Seed {seed} ---")
+    no_dp_sim_cmd = [
+        sys.executable, "-m", "federated.simulation",
+        "--seed", str(seed),
+        "--data-dir", data_dir,
+        "--no-dp",
+    ]
+    if n_rounds is not None:
+        no_dp_sim_cmd += ["--n-rounds", str(n_rounds)]
+    if n_buildings is not None:
+        no_dp_sim_cmd += ["--n-buildings", str(n_buildings)]
+        
+    env_no_dp = {**os.environ, "CHECKPOINT_DIR": ckpt_dir_no_dp}
+    subprocess.run(no_dp_sim_cmd, check=True, env=env_no_dp)
+
+    # 3. Evaluate checkpoints
     cmd = [
         sys.executable, "-m", "scripts.evaluate_checkpoint",
         "--seed", str(seed),
+        "--checkpoint-dir", ckpt_dir,
+        "--checkpoint-dir-no-dp", ckpt_dir_no_dp,
         "--output", out_path,
-    ] + extra_args
+    ]
+    if n_buildings is not None:
+        cmd += ["--n-buildings", str(n_buildings)]
+    if n_rounds is not None:
+        cmd += ["--n-rounds", str(n_rounds)]
+        
+    cmd += extra_args
 
-    logger.info(f"Running seed={seed}: {' '.join(cmd)}")
+    logger.info(f"Running evaluate_checkpoint for seed={seed}: {' '.join(cmd)}")
     subprocess.run(cmd, check=True)
 
     with open(out_path) as f:
@@ -121,19 +161,29 @@ def main():
     parser.add_argument("--data-dir", default="data/raw")
     parser.add_argument("--test-months", nargs="+", type=int, default=[10, 11, 12])
     parser.add_argument("--centralized-epochs", type=int, default=1)
+    parser.add_argument("--n-buildings", type=int, default=None)
+    parser.add_argument("--n-rounds", type=int, default=None)
     args = parser.parse_args()
 
     Path("results/seeds").mkdir(parents=True, exist_ok=True)
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
 
     extra = [
-        "--checkpoint-dir", args.checkpoint_dir,
         "--data-dir", args.data_dir,
         "--centralized-epochs", str(args.centralized_epochs),
         "--test-months",
     ] + [str(m) for m in args.test_months]
 
-    seed_results = [run_one_seed(s, extra) for s in args.seeds]
+    seed_results = [
+        run_one_seed(
+            seed=s,
+            data_dir=args.data_dir,
+            n_buildings=args.n_buildings,
+            n_rounds=args.n_rounds,
+            extra_args=extra
+        )
+        for s in args.seeds
+    ]
     aggregated = aggregate_seeds(seed_results)
     sig_tests = significance_tests(aggregated)
 
