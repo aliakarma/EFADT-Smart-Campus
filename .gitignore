@@ -18,6 +18,14 @@ data/audit/*.db
 # Models & Checkpoints
 models/lstm/checkpoints/*.pt
 models/lstm/checkpoints/*.pkl
+models/lstm/checkpoints_seed*/
+models/lstm/checkpoints_no_dp_seed*/
+models/checkpoints_seed*/
+models/checkpoints_no_dp_seed*/
+
+# Logs and Caches
+*.log
+.ruff_cache/
 
 # Environment
 .env
