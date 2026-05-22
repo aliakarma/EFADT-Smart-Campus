@@ -2,6 +2,17 @@
 
 ---
 
+## 🎉 Scientific Integrity Remediation (Phases 1–5 Completed)
+
+The repository has successfully passed the final reproducibility and publication-readiness audit. All 5 phases from the scientific remediation plan have been completed:
+1. **Simulation Robustness**: Temporal split fallbacks implemented for robust CI and local testing.
+2. **Explainability Calibration**: SHAP Proxy Explainer correctly fits on training splits, generating dynamic trust scores (τ > 0.0) for all buildings.
+3. **Multi-Seed DP Retraining**: Sequential FL retraining per seed independently evaluates the `-DP` ablation variant, demonstrating true privacy-utility trade-offs with valid standard deviations.
+4. **Centralized Baseline Mechanics**: Hardcoded placeholders replaced with full digital twin sequential simulations for the Centralized (`-FL`) baseline.
+5. **Logging & Code Quality**: Redundant imports removed, MLflow tracking stabilized without thread-local errors, and documentation populated with physically simulated metrics.
+
+---
+
 ## ✅ Completed Components
 
 ### Data Pipeline

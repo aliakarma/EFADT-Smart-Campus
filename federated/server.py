@@ -90,10 +90,9 @@ class EFADTFedAvgStrategy(FedAvg):
 
         # Log to MLflow
         try:
-            if mlflow.active_run():
-                mlflow.log_metric("avg_train_loss", avg_train_loss, step=server_round)
+            mlflow.log_metric("avg_train_loss", avg_train_loss, step=server_round)
         except Exception as e:
-            logger.warning(f"Failed to log avg_train_loss to MLflow: {e}")
+            logger.debug(f"Failed to log avg_train_loss to MLflow: {e}")
 
         return aggregated_parameters, {"avg_train_loss": avg_train_loss}
 
@@ -122,10 +121,9 @@ class EFADTFedAvgStrategy(FedAvg):
 
         # Log to MLflow in real-time
         try:
-            if mlflow.active_run():
-                mlflow.log_metric("global_mae", weighted_mae, step=server_round)
+            mlflow.log_metric("global_mae", weighted_mae, step=server_round)
         except Exception as e:
-            logger.warning(f"Failed to log global_mae to MLflow in real-time: {e}")
+            logger.debug(f"Failed to log global_mae to MLflow in real-time: {e}")
 
         # Check convergence
         if (

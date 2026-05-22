@@ -32,7 +32,6 @@ import numpy as np
 import pandas as pd
 import torch
 import yaml
-from pathlib import Path
 
 from models.lstm.train_local import (
     load_checkpoint, prepare_data, evaluate_local, FEATURE_COLUMNS, TARGET_COLUMN
