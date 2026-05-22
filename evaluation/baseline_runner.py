@@ -240,8 +240,23 @@ def evaluate_centralized(
     except Exception:
         building_cfg = {}
 
+    from digital_twin.thermal_model import BuildingThermalParams, ThermalState
+    from digital_twin.simulator import DigitalTwinSimulator
+    from agent.action_space import build_action_space, get_hvac_powers
+    from agent.utility_function import UtilityWeights, select_optimal_action
+
     all_preds, all_true = [], []
     all_o_max_true = []
+    all_system_E, all_baseline_E = [], []
+    all_T_in, all_co2 = [], []
+
+    agent_cfg = config.get("agent", {})
+    weights = UtilityWeights(
+        lambda_e=agent_cfg.get("lambda_e", 0.5),
+        lambda_c=agent_cfg.get("lambda_c", 0.35),
+        lambda_d=agent_cfg.get("lambda_d", 0.15)
+    )
+
     for bid, df in building_data.items():
         df_clean = df.dropna(subset=[TARGET_COLUMN])
         if use_fallback:
@@ -252,30 +267,63 @@ def evaluate_centralized(
             
         if len(df_test) < lookback + 1:
             continue
+            
         X_test = scaler.transform(df_test[FEATURE_COLUMNS].values.astype(np.float32))
         y_test = df_test[TARGET_COLUMN].values.astype(np.float32)
         test_ds = CampusDataset(X_test, y_test, lookback=lookback)
         test_loader = DataLoader(test_ds, batch_size=256, shuffle=False)
         model.eval()
+        
+        y_pred = []
         with torch.no_grad():
             for xb, yb in test_loader:
                 preds, _ = model(xb.to(device))
-                all_preds.extend(preds.squeeze(-1).cpu().numpy())
+                y_pred.extend(preds.squeeze(-1).cpu().numpy())
                 all_true.extend(yb.numpy())
                 all_o_max_true.extend([building_cfg.get(bid, {}).get("max_occupancy", 80)] * len(yb))
+        
+        all_preds.extend(y_pred)
+        
+        bp_cfg = building_cfg.get(bid, {})
+        bp = BuildingThermalParams(
+            alpha=bp_cfg.get("alpha", 0.0018), beta=bp_cfg.get("beta", 0.011), gamma=bp_cfg.get("gamma", 0.009),
+            P_cap=bp_cfg.get("hvac_capacity_kw", 25.0)
+        )
+        sim = DigitalTwinSimulator(bid, params=bp, o_max=bp_cfg.get("max_occupancy", 80))
+        action_space = build_action_space(hvac_min_kw=-bp.P_cap, hvac_max_kw=bp.P_cap)
+        hvac_powers = get_hvac_powers(action_space)
 
-    n = len(all_true)
-    baseline_E = np.full(n, 25.0 * 30 / 3600)
-    system_E = baseline_E * 0.787   # centralized uses same HVAC strategy as EFADT
+        test_records = df_test.to_dict("records")[:len(y_pred)]
+        current_T_in = test_records[0]["temperature_in"] if test_records else 22.0
+
+        for i in range(len(test_records)):
+            row = test_records[i]
+            state = ThermalState(
+                T_in=current_T_in, T_out=row["temperature_out"],
+                Q_hvac=row["hvac_power_kw"], occupancy=row["occupancy"]
+            )
+            occ_forecast = np.full(sim.H, max(0.0, float(y_pred[i])))
+            sim.sync_state(state)
+            best_score, _ = select_optimal_action(sim.evaluate_all_actions(hvac_powers, occ_forecast), weights)
+
+            current_T_in = sim.thermal_model.step(
+                T_in=current_T_in, T_out=row["temperature_out"],
+                Q_hvac=best_score.hvac_power_kw, occ=row["occupancy"]
+            )
+
+            all_system_E.append(abs(best_score.hvac_power_kw) * 30 / 3600)
+            all_baseline_E.append(bp.P_cap * 30 / 3600)
+            all_T_in.append(current_T_in)
+            all_co2.append(row["co2_ppm"])
 
     return compute_all_metrics(
-        baseline_energy=baseline_E, system_energy=system_E,
-        T_in_series=np.full(n, 22.0),   # not available without per-building simulation
-        co2_series=np.full(n, 600.0),
+        baseline_energy=np.array(all_baseline_E), system_energy=np.array(all_system_E),
+        T_in_series=np.array(all_T_in),
+        co2_series=np.array(all_co2),
         occupancy_true=np.array(all_true),
         occupancy_pred=np.array(all_preds),
-        trust_scores=np.zeros(n),
-        o_max=np.array(all_o_max_true) if all_o_max_true else float(config["data"]["max_occupancy"]),
+        trust_scores=np.zeros(len(all_preds)),
+        o_max=np.array(all_o_max_true),
     )
 
 

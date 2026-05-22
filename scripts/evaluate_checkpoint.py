@@ -112,6 +112,7 @@ def evaluate_single_variant(
     weights_override: dict = None,
     skip_fl: bool = False,
     force_zero_trust: bool = False,
+    step_factor: int = 1,
 ) -> EFADTMetrics:
     """Evaluate one ablation variant on all buildings and aggregate metrics."""
     all_preds, all_true = [], []
@@ -173,13 +174,13 @@ def evaluate_single_variant(
         hvac_powers = get_hvac_powers(action_space)
 
         test_records = df_test.to_dict("records")[:len(y_pred)]
-        # Downsample loop by a factor of 100 to evaluate ~2600 steps per building, running in 3-4 seconds!
-        step_factor = 100
+        current_T_in = test_records[0]["temperature_in"] if test_records else 22.0
+        
         for idx in range(0, len(test_records), step_factor):
             row = test_records[idx]
             i = idx
             state = ThermalState(
-                T_in=row["temperature_in"], T_out=row["temperature_out"],
+                T_in=current_T_in, T_out=row["temperature_out"],
                 Q_hvac=row["hvac_power_kw"], occupancy=row["occupancy"],
             )
             occ_forecast = np.full(sim.H, max(0.0, float(y_pred[i])))
@@ -187,9 +188,14 @@ def evaluate_single_variant(
             all_scores = sim.evaluate_all_actions(hvac_powers, occ_forecast)
             best_score, _ = select_optimal_action(all_scores, weights)
 
+            current_T_in = sim.thermal_model.step(
+                T_in=current_T_in, T_out=row["temperature_out"],
+                Q_hvac=best_score.hvac_power_kw, occ=row["occupancy"]
+            )
+
             all_system_E.append(abs(best_score.hvac_power_kw) * 30 / 3600)
             all_baseline_E.append(bp.P_cap * 30 / 3600)
-            all_T_in.append(row["temperature_in"])
+            all_T_in.append(current_T_in)
             all_co2.append(row["co2_ppm"])
             all_occ.append(row["occupancy"])
 
@@ -242,6 +248,7 @@ def main():
         "-DP", "no_dp", "-MOO (energy-only)", "energy_only", "-FL (centralized)",
         "centralized", "Rule-Based", "rule_based"
     ], help="Run only a specific evaluation variant")
+    parser.add_argument("--step-factor", type=int, default=1, help="Downsample factor for evaluation")
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
@@ -292,7 +299,7 @@ def main():
         logger.info("Evaluating EFADT (Full)...")
         results["EFADT (Full)"] = evaluate_single_variant(
             "EFADT (Full)", building_data, args.checkpoint_dir,
-            config, building_cfg, test_months, device,
+            config, building_cfg, test_months, device, step_factor=args.step_factor
         ).to_dict()
 
     # 2. -XAI
@@ -301,7 +308,7 @@ def main():
         results["-XAI"] = evaluate_single_variant(
             "-XAI", building_data, args.checkpoint_dir,
             config, building_cfg, test_months, device,
-            force_zero_trust=True,
+            force_zero_trust=True, step_factor=args.step_factor
         ).to_dict()
 
     # 3. -DT-WIF (DT-only)
@@ -398,16 +405,17 @@ def main():
             
         results["-DP"] = evaluate_single_variant(
             "-DP", building_data, ckpt_no_dp,
-            config, building_cfg, test_months, device,
+            config, building_cfg, test_months, device, step_factor=args.step_factor
         ).to_dict()
 
     # 5. -MOO (energy-only)
     if target_variant is None or target_variant == "-MOO (energy-only)":
         logger.info("Evaluating -MOO (energy-only)...")
         results["-MOO (energy-only)"] = evaluate_single_variant(
-            "-MOO", building_data, args.checkpoint_dir,
+            "-MOO (energy-only)", building_data, args.checkpoint_dir,
             config, building_cfg, test_months, device,
             weights_override={"lambda_e": 1.0, "lambda_c": 0.0, "lambda_d": 0.0},
+            step_factor=args.step_factor
         ).to_dict()
 
     # 6. -FL (centralized)
